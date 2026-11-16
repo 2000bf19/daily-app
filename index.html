@@ -1,0 +1,1124 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>일일 물량 이동 실적 v2.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans KR', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #F4F6F9;
+            color: #1E293B;
+            -webkit-tap-highlight-color: transparent;
+            overscroll-behavior-y: contain;
+        }
+        input[type=number]::-webkit-inner-spin-button,
+        input[type=number]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .card-shadow {
+            box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
+        }
+        .dark-card-shadow {
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
+        }
+    </style>
+</head>
+<body class="pb-16 select-none">
+
+    <!-- 토스트 알림 -->
+    <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 transition-all duration-300 transform -translate-y-2">
+        <div class="bg-slate-900/95 text-white text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-full shadow-lg flex items-center gap-2 whitespace-nowrap">
+            <span id="toastIcon">✅</span>
+            <span id="toastText">저장되었습니다.</span>
+        </div>
+    </div>
+
+    <!-- 메인 컨테이너 -->
+    <div class="max-w-lg mx-auto px-3.5 pt-3">
+
+        <!-- 1. 상단 헤더 영역 -->
+        <header class="flex items-center justify-between gap-1.5 mb-2.5">
+            <div class="flex items-center gap-1.5">
+                <h1 class="text-[18px] sm:text-xl font-black tracking-tight text-slate-900">일일 물량 이동 실적</h1>
+                <span class="bg-blue-600 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-sm">v2.0</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+                <div id="onlineStatusBadge" class="flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-700 text-[10px] sm:text-[11px] font-bold px-2.5 py-1.5 rounded-full transition">
+                    <span id="onlineDot" class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                    <span id="onlineText">서버 연결 중...</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- 2. 상단 고정 가능 컨트롤 영역 (요약 대시보드 + 조 선택 + 고정 토글) -->
+        <div id="stickyWrapper" class="sticky top-0 z-30 bg-[#F4F6F9]/95 backdrop-blur-sm pt-1 pb-2.5 -mx-3.5 px-3.5 transition-all">
+            
+            <!-- 다크 네이비 요약 카드 -->
+            <div class="bg-[#0F172A] text-white rounded-2xl p-3.5 dark-card-shadow mb-2.5">
+                <div class="flex items-center justify-between mb-2.5">
+                    <div class="flex items-baseline gap-1.5">
+                        <span id="summaryTeamLabel" class="text-xs sm:text-sm font-bold text-slate-200">D조 입력 합계</span>
+                        <span class="text-sm sm:text-base font-extrabold text-sky-400">총 <span id="totalPltCount">0</span> PLT</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                        <button type="button" id="saveHeaderBtn" class="bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1 shadow transition">
+                            <span>💾</span>
+                            <span>저장</span>
+                        </button>
+                        <button type="button" id="resetHeaderBtn" class="bg-slate-700/90 hover:bg-slate-700 active:scale-95 text-slate-200 text-xs font-bold px-2.5 py-1.5 rounded-xl transition">
+                            <span>초기화</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 4대 핵심 지표 카드 -->
+                <div class="grid grid-cols-4 gap-2">
+                    <div class="bg-[#1E293B] rounded-xl py-2 px-1 text-center border border-slate-700/50">
+                        <div class="text-[10px] font-bold text-slate-400 mb-0.5">BOX</div>
+                        <div id="sumBox" class="text-base sm:text-lg font-black text-white leading-tight">0</div>
+                    </div>
+                    <div class="bg-[#1E293B] rounded-xl py-2 px-1 text-center border border-slate-700/50">
+                        <div class="text-[10px] font-bold text-slate-400 mb-0.5">PB</div>
+                        <div id="sumPb" class="text-base sm:text-lg font-black text-white leading-tight">0</div>
+                    </div>
+                    <div class="bg-[#1E293B] rounded-xl py-2 px-1 text-center border border-slate-700/50">
+                        <div class="text-[10px] font-bold text-slate-400 mb-0.5">기타</div>
+                        <div id="sumEtc" class="text-base sm:text-lg font-black text-amber-400 leading-tight">0</div>
+                    </div>
+                    <div class="bg-[#1E293B] rounded-xl py-2 px-1 text-center border border-slate-700/50">
+                        <div class="text-[10px] font-bold text-slate-400 mb-0.5">그라운드 잔여</div>
+                        <div id="sumGroundRem" class="text-base sm:text-lg font-black text-purple-400 leading-tight">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. 상단 고정 토글 & 조 선택 바 (A조, C조, D조, F조, G조, I조) -->
+            <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                <button type="button" id="pinToggleBtn" class="shrink-0 bg-indigo-600 border border-indigo-600 text-white text-xs font-extrabold px-3.5 py-1.5 rounded-full shadow-sm active:scale-95 transition">
+                    <span id="pinToggleText">고정</span>
+                </button>
+                <div id="teamButtonsContainer" class="flex items-center gap-1.5">
+                    <button type="button" data-team="A조" class="team-btn shrink-0 px-3.5 py-1.5 rounded-full text-xs font-extrabold border transition active:scale-95 bg-white text-slate-700 border-slate-200">A조</button>
+                    <button type="button" data-team="C조" class="team-btn shrink-0 px-3.5 py-1.5 rounded-full text-xs font-extrabold border transition active:scale-95 bg-white text-slate-700 border-slate-200">C조</button>
+                    <button type="button" data-team="D조" class="team-btn shrink-0 px-3.5 py-1.5 rounded-full text-xs font-extrabold border transition active:scale-95 bg-blue-600 text-white border-blue-600 shadow-sm">D조</button>
+                    <button type="button" data-team="F조" class="team-btn shrink-0 px-3.5 py-1.5 rounded-full text-xs font-extrabold border transition active:scale-95 bg-white text-slate-700 border-slate-200">F조</button>
+                    <button type="button" data-team="G조" class="team-btn shrink-0 px-3.5 py-1.5 rounded-full text-xs font-extrabold border transition active:scale-95 bg-white text-slate-700 border-slate-200">G조</button>
+                    <button type="button" data-team="I조" class="team-btn shrink-0 px-3.5 py-1.5 rounded-full text-xs font-extrabold border transition active:scale-95 bg-white text-slate-700 border-slate-200">I조</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. 날짜 선택 컨트롤 바 -->
+        <section class="bg-white rounded-2xl px-3 py-2.5 mb-3 border border-slate-200/80 card-shadow flex items-center justify-between">
+            <button type="button" id="prevDateBtn" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 flex items-center justify-center text-slate-700 font-black text-sm transition">
+                ◀
+            </button>
+            <div class="flex items-center gap-2">
+                <div class="relative flex items-center gap-1.5 cursor-pointer" id="datePickerTrigger">
+                    <span id="formattedDateDisplay" class="text-sm sm:text-base font-black text-slate-900">2026. 11. 17.</span>
+                    <span class="text-xs text-slate-400">⌄</span>
+                    <span id="formattedDayDisplay" class="text-xs sm:text-sm font-bold text-slate-500">(화)</span>
+                    <input type="date" id="hiddenDateInput" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full">
+                </div>
+                <button type="button" id="todayDateBtn" class="bg-blue-50 hover:bg-blue-100 text-blue-600 text-[11px] font-extrabold px-2.5 py-1 rounded-lg transition">
+                    오늘
+                </button>
+            </div>
+            <button type="button" id="nextDateBtn" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 flex items-center justify-center text-slate-700 font-black text-sm transition">
+                ▶
+            </button>
+        </section>
+
+        <!-- 5. 물량 이동 입력 섹션 컨테이너 -->
+        <div id="teamInputSections" class="space-y-3">
+
+            <!-- 1. 그라운드 → 벌크 이동 -->
+            <section class="bg-white rounded-2xl overflow-hidden border border-slate-200/70 card-shadow">
+                <div class="bg-[#DBEAFE] px-4 py-2.5 flex items-center justify-between">
+                    <h2 class="text-sm font-extrabold text-slate-800">1. 그라운드 → 벌크 이동</h2>
+                    <span class="bg-white/95 text-blue-700 text-xs font-extrabold px-2.5 py-0.5 rounded-full">
+                        소계 <span id="sub_g2b">0</span>
+                    </span>
+                </div>
+                <div class="p-3 grid grid-cols-3 gap-2">
+                    <div class="bg-slate-50/70 border border-slate-200/80 rounded-xl p-2 text-center">
+                        <div class="text-[11px] font-extrabold text-slate-600 mb-1">BOX</div>
+                        <div class="flex items-center justify-between gap-1">
+                            <button type="button" data-field="g2b_box" data-delta="-1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 font-black text-base active:bg-slate-100">-</button>
+                            <input type="number" id="input_g2b_box" data-field="g2b_box" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
+                            <button type="button" data-field="g2b_box" data-delta="1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-blue-600 font-black text-base active:bg-blue-50">+</button>
+                        </div>
+                    </div>
+                    <div class="bg-slate-50/70 border border-slate-200/80 rounded-xl p-2 text-center">
+                        <div class="text-[11px] font-extrabold text-slate-600 mb-1">PB</div>
+                        <div class="flex items-center justify-between gap-1">
+                            <button type="button" data-field="g2b_pb" data-delta="-1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 font-black text-base active:bg-slate-100">-</button>
+                            <input type="number" id="input_g2b_pb" data-field="g2b_pb" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
+                            <button type="button" data-field="g2b_pb" data-delta="1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-blue-600 font-black text-base active:bg-blue-50">+</button>
+                        </div>
+                    </div>
+                    <div class="bg-slate-50/70 border border-slate-200/80 rounded-xl p-2 text-center">
+                        <div class="text-[11px] font-extrabold text-slate-600 mb-1">기타</div>
+                        <div class="flex items-center justify-between gap-1">
+                            <button type="button" data-field="g2b_etc" data-delta="-1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 font-black text-base active:bg-slate-100">-</button>
+                            <input type="number" id="input_g2b_etc" data-field="g2b_etc" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
+                            <button type="button" data-field="g2b_etc" data-delta="1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-blue-600 font-black text-base active:bg-blue-50">+</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. 벌크 → 벌크 이동 -->
+            <section class="bg-white rounded-2xl overflow-hidden border border-slate-200/70 card-shadow">
+                <div class="bg-[#A7F3D0] px-4 py-2.5 flex items-center justify-between">
+                    <h2 class="text-sm font-extrabold text-slate-800">2. 벌크 → 벌크 이동</h2>
+                    <span class="bg-white/95 text-emerald-700 text-xs font-extrabold px-2.5 py-0.5 rounded-full">
+                        소계 <span id="sub_b2b">0</span>
+                    </span>
+                </div>
+                <div class="p-3 grid grid-cols-3 gap-2">
+                    <div class="bg-slate-50/70 border border-slate-200/80 rounded-xl p-2 text-center">
+                        <div class="text-[11px] font-extrabold text-slate-600 mb-1">BOX</div>
+                        <div class="flex items-center justify-between gap-1">
+                            <button type="button" data-field="b2b_box" data-delta="-1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 font-black text-base active:bg-slate-100">-</button>
+                            <input type="number" id="input_b2b_box" data-field="b2b_box" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
+                            <button type="button" data-field="b2b_box" data-delta="1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-emerald-600 font-black text-base active:bg-emerald-50">+</button>
+                        </div>
+                    </div>
+                    <div class="bg-slate-50/70 border border-slate-200/80 rounded-xl p-2 text-center">
+                        <div class="text-[11px] font-extrabold text-slate-600 mb-1">PB</div>
+                        <div class="flex items-center justify-between gap-1">
+                            <button type="button" data-field="b2b_pb" data-delta="-1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 font-black text-base active:bg-slate-100">-</button>
+                            <input type="number" id="input_b2b_pb" data-field="b2b_pb" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
+                            <button type="button" data-field="b2b_pb" data-delta="1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-emerald-600 font-black text-base active:bg-emerald-50">+</button>
+                        </div>
+                    </div>
+                    <div class="bg-slate-50/70 border border-slate-200/80 rounded-xl p-2 text-center">
+                        <div class="text-[11px] font-extrabold text-slate-600 mb-1">기타</div>
+                        <div class="flex items-center justify-between gap-1">
+                            <button type="button" data-field="b2b_etc" data-delta="-1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 font-black text-base active:bg-slate-100">-</button>
+                            <input type="number" id="input_b2b_etc" data-field="b2b_etc" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
+                            <button type="button" data-field="b2b_etc" data-delta="1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-emerald-600 font-black text-base active:bg-emerald-50">+</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3. 벌크 → 라인 이동 -->
+            <section class="bg-white rounded-2xl overflow-hidden border border-slate-200/70 card-shadow">
+                <div class="bg-[#FDE68A] px-4 py-2.5 flex items-center justify-between">
+                    <h2 class="text-sm font-extrabold text-slate-800">3. 벌크 → 라인 이동</h2>
+                    <span class="bg-white/95 text-amber-700 text-xs font-extrabold px-2.5 py-0.5 rounded-full">
+                        소계 <span id="sub_b2l">0</span>
+                    </span>
+                </div>
+                <div class="p-3 grid grid-cols-3 gap-2">
+                    <div class="bg-slate-50/70 border border-slate-200/80 rounded-xl p-2 text-center">
+                        <div class="text-[11px] font-extrabold text-slate-600 mb-1">BOX</div>
+                        <div class="flex items-center justify-between gap-1">
+                            <button type="button" data-field="b2l_box" data-delta="-1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 font-black text-base active:bg-slate-100">-</button>
+                            <input type="number" id="input_b2l_box" data-field="b2l_box" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
+                            <button type="button" data-field="b2l_box" data-delta="1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-amber-600 font-black text-base active:bg-amber-50">+</button>
+                        </div>
+                    </div>
+                    <div class="bg-slate-50/70 border border-slate-200/80 rounded-xl p-2 text-center">
+                        <div class="text-[11px] font-extrabold text-slate-600 mb-1">PB</div>
+                        <div class="flex items-center justify-between gap-1">
+                            <button type="button" data-field="b2l_pb" data-delta="-1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 font-black text-base active:bg-slate-100">-</button>
+                            <input type="number" id="input_b2l_pb" data-field="b2l_pb" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
+                            <button type="button" data-field="b2l_pb" data-delta="1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-amber-600 font-black text-base active:bg-amber-50">+</button>
+                        </div>
+                    </div>
+                    <div class="bg-slate-50/70 border border-slate-200/80 rounded-xl p-2 text-center">
+                        <div class="text-[11px] font-extrabold text-slate-600 mb-1">기타</div>
+                        <div class="flex items-center justify-between gap-1">
+                            <button type="button" data-field="b2l_etc" data-delta="-1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 font-black text-base active:bg-slate-100">-</button>
+                            <input type="number" id="input_b2l_etc" data-field="b2l_etc" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
+                            <button type="button" data-field="b2l_etc" data-delta="1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-amber-600 font-black text-base active:bg-amber-50">+</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 4. CFC / 롤테이너 이동 -->
+            <section class="bg-white rounded-2xl overflow-hidden border border-slate-200/70 card-shadow">
+                <div class="bg-[#FECDD3] px-4 py-2.5 flex items-center justify-between">
+                    <h2 class="text-sm font-extrabold text-slate-800">4. CFC / 롤테이너 이동</h2>
+                    <span class="bg-white/95 text-rose-700 text-xs font-extrabold px-2.5 py-0.5 rounded-full">
+                        소계 <span id="sub_cfc">0</span>
+                    </span>
+                </div>
+                <div class="p-3 grid grid-cols-3 gap-2">
+                    <div class="bg-slate-50/70 border border-slate-200/80 rounded-xl p-2 text-center">
+                        <div class="text-[11px] font-extrabold text-slate-600 mb-1">BOX</div>
+                        <div class="flex items-center justify-between gap-1">
+                            <button type="button" data-field="cfc_box" data-delta="-1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 font-black text-base active:bg-slate-100">-</button>
+                            <input type="number" id="input_cfc_box" data-field="cfc_box" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
+                            <button type="button" data-field="cfc_box" data-delta="1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-rose-600 font-black text-base active:bg-rose-50">+</button>
+                        </div>
+                    </div>
+                    <div class="bg-slate-50/70 border border-slate-200/80 rounded-xl p-2 text-center">
+                        <div class="text-[11px] font-extrabold text-slate-600 mb-1">PB</div>
+                        <div class="flex items-center justify-between gap-1">
+                            <button type="button" data-field="cfc_pb" data-delta="-1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 font-black text-base active:bg-slate-100">-</button>
+                            <input type="number" id="input_cfc_pb" data-field="cfc_pb" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
+                            <button type="button" data-field="cfc_pb" data-delta="1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-rose-600 font-black text-base active:bg-rose-50">+</button>
+                        </div>
+                    </div>
+                    <div class="bg-slate-50/70 border border-slate-200/80 rounded-xl p-2 text-center">
+                        <div class="text-[11px] font-extrabold text-slate-600 mb-1">기타</div>
+                        <div class="flex items-center justify-between gap-1">
+                            <button type="button" data-field="cfc_etc" data-delta="-1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 font-black text-base active:bg-slate-100">-</button>
+                            <input type="number" id="input_cfc_etc" data-field="cfc_etc" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
+                            <button type="button" data-field="cfc_etc" data-delta="1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-rose-600 font-black text-base active:bg-rose-50">+</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 5. 공토트 이동 및 잔여 현황 -->
+            <section class="bg-white rounded-2xl overflow-hidden border border-slate-200/70 card-shadow">
+                <div class="bg-[#EDE9FE] px-3.5 py-2.5 flex items-center justify-between gap-1.5">
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                        <h2 class="text-sm font-extrabold text-purple-950">5. 공토트 이동 및 잔여 현황</h2>
+                        <button type="button" id="resetEmptyToteBtn" class="bg-purple-600 hover:bg-purple-500 active:scale-95 text-white text-[11px] font-extrabold px-2.5 py-1 rounded-full shadow-xs transition">
+                            공토트 초기화
+                        </button>
+                    </div>
+                    <span class="bg-white/95 text-purple-700 text-xs font-extrabold px-2.5 py-0.5 rounded-full shrink-0">
+                        층별 차감 합계 -<span id="floorDeductSum">0</span>
+                    </span>
+                </div>
+                <div class="p-3 space-y-2.5">
+                    <div class="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-3 space-y-3">
+                        <div class="flex items-center justify-between gap-2">
+                            <div class="min-w-0">
+                                <div class="text-sm font-extrabold text-slate-800">메쟈닌 → 그라운드</div>
+                                <div class="text-[10px] tracking-tighter whitespace-nowrap text-slate-500 leading-tight mt-0.5">아래 6·7·8층 입력 개수가 자동 차감됩니다</div>
+                            </div>
+                            <div class="flex items-center gap-1.5 shrink-0">
+                                <button type="button" data-field="m2g_total" data-delta="-1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 font-black text-base active:bg-slate-100">-</button>
+                                <input type="number" id="input_m2g_total" data-field="m2g_total" value="0" min="0" class="num-input w-12 h-9 text-center font-black text-base text-slate-900 bg-white border border-slate-200 rounded-xl focus:outline-none">
+                                <button type="button" data-field="m2g_total" data-delta="1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-purple-600 font-black text-base active:bg-purple-50">+</button>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2">
+                            <div class="bg-white border border-slate-200/90 rounded-xl p-2 text-center">
+                                <div class="text-xs font-extrabold text-slate-700 mb-1.5">6층</div>
+                                <div class="flex items-center justify-between gap-1">
+                                    <button type="button" data-field="m2g_6f" data-delta="-1" class="adj-btn w-7 h-8 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 font-black text-sm">-</button>
+                                    <input type="number" id="input_m2g_6f" data-field="m2g_6f" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
+                                    <button type="button" data-field="m2g_6f" data-delta="1" class="adj-btn w-7 h-8 rounded-lg bg-purple-50 border border-purple-200 text-purple-700 font-black text-sm">+</button>
+                                </div>
+                            </div>
+                            <div class="bg-white border border-slate-200/90 rounded-xl p-2 text-center">
+                                <div class="text-xs font-extrabold text-slate-700 mb-1.5">7층</div>
+                                <div class="flex items-center justify-between gap-1">
+                                    <button type="button" data-field="m2g_7f" data-delta="-1" class="adj-btn w-7 h-8 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 font-black text-sm">-</button>
+                                    <input type="number" id="input_m2g_7f" data-field="m2g_7f" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
+                                    <button type="button" data-field="m2g_7f" data-delta="1" class="adj-btn w-7 h-8 rounded-lg bg-purple-50 border border-purple-200 text-purple-700 font-black text-sm">+</button>
+                                </div>
+                            </div>
+                            <div class="bg-white border border-slate-200/90 rounded-xl p-2 text-center">
+                                <div class="text-xs font-extrabold text-slate-700 mb-1.5">8층</div>
+                                <div class="flex items-center justify-between gap-1">
+                                    <button type="button" data-field="m2g_8f" data-delta="-1" class="adj-btn w-7 h-8 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 font-black text-sm">-</button>
+                                    <input type="number" id="input_m2g_8f" data-field="m2g_8f" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
+                                    <button type="button" data-field="m2g_8f" data-delta="1" class="adj-btn w-7 h-8 rounded-lg bg-purple-50 border border-purple-200 text-purple-700 font-black text-sm">+</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 그라운드 잔여 -->
+                    <div class="bg-purple-50/70 border border-purple-200/80 rounded-2xl px-3.5 py-2.5 flex items-center justify-between">
+                        <div>
+                            <div class="text-sm font-extrabold text-slate-800">그라운드 잔여</div>
+                            <div class="text-[11px] font-bold text-purple-700 mt-0.5">
+                                메쟈닌→그라운드(<span id="formulaM2G">0</span>) - 6·7·8층(<span id="formulaFloors">0</span>)
+                            </div>
+                        </div>
+                        <div class="bg-white border border-purple-200 text-purple-700 font-black text-base px-4 py-1.5 rounded-xl">
+                            <span id="calcGroundRemDisplay">0</span>
+                        </div>
+                    </div>
+
+                    <!-- 메쟈닌 잔여 -->
+                    <div class="bg-slate-50/80 border border-slate-200/80 rounded-2xl px-3.5 py-2.5 flex items-center justify-between">
+                        <div class="text-sm font-extrabold text-slate-800">메쟈닌 잔여</div>
+                        <div class="flex items-center gap-1.5">
+                            <button type="button" data-field="rem_mezzanine" data-delta="-1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 font-black text-base active:bg-slate-100">-</button>
+                            <input type="number" id="input_rem_mezzanine" data-field="rem_mezzanine" value="0" min="0" class="num-input w-12 h-9 text-center font-black text-base text-slate-900 bg-white border border-slate-200 rounded-xl focus:outline-none">
+                            <button type="button" data-field="rem_mezzanine" data-delta="1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-purple-600 font-black text-base active:bg-purple-50">+</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 6. 작업자 / 비고란 -->
+            <section class="bg-white rounded-2xl overflow-hidden border border-slate-200/70 card-shadow">
+                <div class="bg-slate-100 px-4 py-2.5 flex items-center justify-between">
+                    <h2 class="text-sm font-extrabold text-slate-800">6. 작업자 / 비고란</h2>
+                    <span class="text-[11px] font-bold text-slate-500">숫자+plt 입력 시 기타 자동 합산</span>
+                </div>
+                <div class="p-3">
+                    <textarea id="input_remark" rows="2" placeholder="예: 홍길동 / 잔여 파렛트 정리 3plt (입력 후 저장 버튼을 누르면 전체표에 공유됩니다)" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white transition resize-none select-text"></textarea>
+                </div>
+            </section>
+        </div>
+
+        <!-- 7. 전체 실적 집계표 (A조~I조) -->
+        <section class="bg-white rounded-2xl overflow-hidden border border-slate-200/80 card-shadow mt-3">
+            <div class="bg-[#1E1B4B] text-white px-4 py-3 flex items-center justify-between">
+                <div>
+                    <div class="flex items-center gap-1.5">
+                        <span class="text-sm">🏆</span>
+                        <h2 class="text-sm font-extrabold">전체 실적 집계표 (A조~I조)</h2>
+                    </div>
+                    <div class="text-[11px] text-indigo-200 font-semibold mt-0.5">
+                        <span id="aggHeaderDate">2026-11-17 (화)</span> · 총 <span id="aggHeaderTotalPlt">0</span> PLT
+                    </div>
+                </div>
+                <button type="button" id="refreshTableBtn" class="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-bold px-2.5 py-1.5 rounded-xl flex items-center gap-1 shadow transition">
+                    <span>🔄</span>
+                    <span>새로고침</span>
+                </button>
+            </div>
+
+            <div class="p-3">
+                <div class="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table class="w-full text-center border-collapse text-xs">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-600 font-extrabold border-b border-slate-200">
+                                <th class="py-2 px-2">구분(조)</th>
+                                <th class="py-2 px-2">BOX</th>
+                                <th class="py-2 px-2">PB</th>
+                                <th class="py-2 px-2">기타</th>
+                                <th class="py-2 px-2 text-slate-900">합계</th>
+                            </tr>
+                        </thead>
+                        <tbody id="aggregateTableBody" class="divide-y divide-slate-100 font-semibold text-slate-700">
+                        </tbody>
+                        <tfoot>
+                            <tr class="bg-indigo-50/80 font-black text-slate-900 border-t border-indigo-200">
+                                <td class="py-2.5 px-2 text-indigo-900">총합계</td>
+                                <td id="aggTotalBox" class="py-2.5 px-2">0</td>
+                                <td id="aggTotalPb" class="py-2.5 px-2">0</td>
+                                <td id="aggTotalEtc" class="py-2.5 px-2 text-amber-600">0</td>
+                                <td id="aggTotalPlt" class="py-2.5 px-2 text-indigo-700">0</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+
+                <!-- 조별 비고 내역 -->
+                <div id="aggRemarksBox" class="mt-2.5 bg-slate-50 rounded-xl p-2.5 border border-slate-200/70 hidden">
+                    <div class="text-[11px] font-extrabold text-slate-600 mb-1">📝 조별 작업자 / 비고 내역</div>
+                    <div id="aggRemarksList" class="text-[11px] text-slate-700 space-y-0.5"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 8. 공유 메시지 미리보기 카드 -->
+        <section class="bg-white rounded-2xl p-3.5 border border-slate-200/80 card-shadow mt-3">
+            <div class="flex items-center justify-between mb-2.5">
+                <div class="flex items-center gap-1.5">
+                    <span class="text-sm">📋</span>
+                    <h2 class="text-sm font-extrabold text-slate-800">공유 메시지 미리보기</h2>
+                </div>
+                <button type="button" id="copyReportBtn" class="bg-blue-50 hover:bg-blue-100 active:scale-95 text-blue-600 text-xs font-extrabold px-3 py-1.5 rounded-xl transition">
+                    실적 복사
+                </button>
+            </div>
+            <pre id="sharePreviewBox" class="bg-slate-50 border border-slate-200/80 rounded-xl p-3 text-xs text-slate-700 font-sans whitespace-pre-wrap leading-relaxed select-text"></pre>
+        </section>
+
+    </div>
+
+    <!-- 초기화 확인 모달 -->
+    <div id="resetModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-xs w-full p-5 shadow-2xl text-center">
+            <div class="text-2xl mb-2">⚠️</div>
+            <h3 class="text-base font-black text-slate-900 mb-1"><span id="resetModalTeamName">D조</span> 입력값 초기화</h3>
+            <p class="text-xs text-slate-500 mb-4">현재 조의 입력 수량과 비고란이 모두 0으로 초기화됩니다.</p>
+            <div class="flex gap-2">
+                <button type="button" id="cancelResetBtn" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-2.5 rounded-xl">취소</button>
+                <button type="button" id="confirmResetBtn" class="flex-1 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs py-2.5 rounded-xl">초기화</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase 및 UI 로직 스크립트 -->
+    <script type="module">
+        import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, deleteDoc, onSnapshot, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // 조 목록 (A조, C조, D조, F조, G조, I조)
+        const TEAMS = ['A조', 'C조', 'D조', 'F조', 'G조', 'I조'];
+        const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+        const NUMERIC_FIELDS = [
+            'g2b_box', 'g2b_pb', 'g2b_etc',
+            'b2b_box', 'b2b_pb', 'b2b_etc',
+            'b2l_box', 'b2l_pb', 'b2l_etc',
+            'cfc_box', 'cfc_pb', 'cfc_etc',
+            'm2g_total', 'm2g_6f', 'm2g_7f', 'm2g_8f', 'rem_mezzanine'
+        ];
+        const COLLECTION_NAME = 'daily_logistics';
+
+        let currentTeam = 'D조';
+        let isStickyPinned = true;
+        let isDirty = false;
+        let localDrafts = {};
+        let committedData = {};
+        let firebaseApp = null;
+        let db = null;
+        let unsubscribeSnapshot = null;
+
+        // KST(한국 표준시) 기준 오늘 날짜 YYYY-MM-DD 반환
+        function getTodayKST() {
+            const now = new Date();
+            const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+            const kst = new Date(utc + (9 * 3600000));
+            return kst.toISOString().split('T')[0];
+        }
+        let currentDate = getTodayKST();
+
+        // KST 기준 오늘로부터 N일 전 날짜 문자열(YYYY-MM-DD) 반환
+        function getDateOffsetKST(daysOffset) {
+            const now = new Date();
+            const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+            const kst = new Date(utc + (9 * 3600000));
+            kst.setDate(kst.getDate() + daysOffset);
+            return kst.toISOString().split('T')[0];
+        }
+
+        function createEmptyRecord() {
+            return {
+                g2b_box: 0, g2b_pb: 0, g2b_etc: 0,
+                b2b_box: 0, b2b_pb: 0, b2b_etc: 0,
+                b2l_box: 0, b2l_pb: 0, b2l_etc: 0,
+                cfc_box: 0, cfc_pb: 0, cfc_etc: 0,
+                m2g_total: 0,
+                m2g_6f: 0, m2g_7f: 0, m2g_8f: 0,
+                rem_mezzanine: 0,
+                remark: '',
+                updatedAt: null
+            };
+        }
+
+        function getDocKey(date = currentDate, team = currentTeam) {
+            return `${date}_${team}`;
+        }
+
+        function getActiveRecord() {
+            const key = getDocKey();
+            if (!localDrafts[key]) {
+                localDrafts[key] = committedData[key]
+                    ? JSON.parse(JSON.stringify(committedData[key]))
+                    : createEmptyRecord();
+            }
+            return localDrafts[key];
+        }
+
+        function parseRemarkPlt(remarkText) {
+            if (!remarkText) return 0;
+            const regex = /(\d+)\s*plt/gi;
+            let match;
+            let sum = 0;
+            while ((match = regex.exec(remarkText)) !== null) {
+                sum += parseInt(match[1], 10) || 0;
+            }
+            return sum;
+        }
+
+        // 공유 메시지용 비고 정제: '공토트'로 시작하는 '숫자+plt' 항목(줄/구문) 제외
+        function filterRemarkForShareMessage(remarkText) {
+            if (!remarkText || !remarkText.trim()) return '';
+            const lines = remarkText.split(/\r?\n/);
+            const filteredLines = lines.map(line => {
+                // 한 줄에 슬래시(/)나 쉼표(,)로 구분된 항목이 있을 경우도 개별 필터링 처리
+                const parts = line.split(/(\s*\/\s*|\s*,\s*)/);
+                let resultParts = [];
+                for (let i = 0; i < parts.length; i += 2) {
+                    const item = (parts[i] || '').trim();
+                    if (!item) continue;
+                    // '공토트'로 시작하고 숫자+plt가 이어지는 경우 제외
+                    if (/^공토트\s*\d+\s*plt/i.test(item)) {
+                        continue;
+                    }
+                    resultParts.push(item);
+                }
+                return resultParts.join(' / ');
+            }).filter(line => line.trim() !== '');
+
+            return filteredLines.join('\n').trim();
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/[&<>"']/g, m => ({
+                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+            }[m]));
+        }
+
+        let toastTimer = null;
+        function showToast(message, icon = '✅') {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastText').textContent = message;
+            document.getElementById('toastIcon').textContent = icon;
+            toast.classList.remove('opacity-0', '-translate-y-2');
+            toast.classList.add('opacity-100', 'translate-y-0');
+            clearTimeout(toastTimer);
+            toastTimer = setTimeout(() => {
+                toast.classList.remove('opacity-100', 'translate-y-0');
+                toast.classList.add('opacity-0', '-translate-y-2');
+            }, 2600);
+        }
+
+        function setConnectionStatus(status, message) {
+            const badge = document.getElementById('onlineStatusBadge');
+            const dot = document.getElementById('onlineDot');
+            const text = document.getElementById('onlineText');
+
+            if (status === 'connected') {
+                badge.className = "flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] sm:text-[11px] font-bold px-2.5 py-1.5 rounded-full transition";
+                dot.className = "w-2 h-2 rounded-full bg-emerald-500 animate-pulse";
+                text.textContent = message || '온라인 실시간 동기화';
+            } else {
+                badge.className = "flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-700 text-[10px] sm:text-[11px] font-bold px-2.5 py-1.5 rounded-full transition";
+                dot.className = "w-2 h-2 rounded-full bg-amber-500 animate-pulse";
+                text.textContent = message || '서버 연결 중...';
+            }
+        }
+
+        function formatDateLabels() {
+            const parts = currentDate.split('-');
+            if (parts.length !== 3) return;
+            const y = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10);
+            const d = parseInt(parts[2], 10);
+            const dt = new Date(y, m - 1, d);
+            const dayName = WEEKDAYS[dt.getDay()];
+
+            document.getElementById('formattedDateDisplay').textContent = `${y}. ${String(m).padStart(2, '0')}. ${String(d).padStart(2, '0')}.`;
+            document.getElementById('formattedDayDisplay').textContent = `(${dayName})`;
+            document.getElementById('hiddenDateInput').value = currentDate;
+            document.getElementById('aggHeaderDate').textContent = `${currentDate} (${dayName})`;
+        }
+
+        function renderTeamButtons() {
+            const buttons = document.querySelectorAll('#teamButtonsContainer .team-btn');
+            buttons.forEach(btn => {
+                const team = btn.getAttribute('data-team');
+                if (team === currentTeam) {
+                    btn.className = "team-btn shrink-0 px-3.5 py-1.5 rounded-full text-xs font-extrabold border transition active:scale-95 bg-blue-600 text-white border-blue-600 shadow-sm";
+                } else {
+                    btn.className = "team-btn shrink-0 px-3.5 py-1.5 rounded-full text-xs font-extrabold border transition active:scale-95 bg-white text-slate-700 border-slate-200 hover:bg-slate-50";
+                }
+            });
+        }
+
+        function computeTotals(rec) {
+            const remarkPlt = parseRemarkPlt(rec.remark);
+            const box = (Number(rec.g2b_box) || 0) + (Number(rec.b2b_box) || 0) + (Number(rec.b2l_box) || 0) + (Number(rec.cfc_box) || 0);
+            const pb = (Number(rec.g2b_pb) || 0) + (Number(rec.b2b_pb) || 0) + (Number(rec.b2l_pb) || 0) + (Number(rec.cfc_pb) || 0);
+            const etc = (Number(rec.g2b_etc) || 0) + (Number(rec.b2b_etc) || 0) + (Number(rec.b2l_etc) || 0) + (Number(rec.cfc_etc) || 0) + remarkPlt;
+            const total = box + pb + etc;
+            const m2gTotal = Number(rec.m2g_total) || 0;
+            const floorSum = (Number(rec.m2g_6f) || 0) + (Number(rec.m2g_7f) || 0) + (Number(rec.m2g_8f) || 0);
+            const groundRem = m2gTotal - floorSum;
+            return { box, pb, etc, total, groundRem, m2gTotal, floorSum };
+        }
+
+        function syncFormAndSummaryUI() {
+            const rec = getActiveRecord();
+
+            NUMERIC_FIELDS.forEach(field => {
+                const el = document.getElementById(`input_${field}`);
+                if (el) {
+                    el.value = Number(rec[field]) || 0;
+                }
+            });
+
+            const remarkEl = document.getElementById('input_remark');
+            if (remarkEl && document.activeElement !== remarkEl && remarkEl.value !== (rec.remark || '')) {
+                remarkEl.value = rec.remark || '';
+            }
+
+            const subG2B = (Number(rec.g2b_box) || 0) + (Number(rec.g2b_pb) || 0) + (Number(rec.g2b_etc) || 0);
+            const subB2B = (Number(rec.b2b_box) || 0) + (Number(rec.b2b_pb) || 0) + (Number(rec.b2b_etc) || 0);
+            const subB2L = (Number(rec.b2l_box) || 0) + (Number(rec.b2l_pb) || 0) + (Number(rec.b2l_etc) || 0);
+            const subCFC = (Number(rec.cfc_box) || 0) + (Number(rec.cfc_pb) || 0) + (Number(rec.cfc_etc) || 0);
+
+            document.getElementById('sub_g2b').textContent = subG2B;
+            document.getElementById('sub_b2b').textContent = subB2B;
+            document.getElementById('sub_b2l').textContent = subB2L;
+            document.getElementById('sub_cfc').textContent = subCFC;
+
+            const stats = computeTotals(rec);
+            const f6 = Number(rec.m2g_6f) || 0;
+            const f7 = Number(rec.m2g_7f) || 0;
+            const f8 = Number(rec.m2g_8f) || 0;
+            const remMezzanine = Number(rec.rem_mezzanine) || 0;
+
+            document.getElementById('floorDeductSum').textContent = stats.floorSum;
+            document.getElementById('formulaM2G').textContent = stats.m2gTotal;
+            document.getElementById('formulaFloors').textContent = stats.floorSum;
+            document.getElementById('calcGroundRemDisplay').textContent = stats.groundRem;
+
+            document.getElementById('summaryTeamLabel').textContent = `${currentTeam} 입력 합계`;
+            document.getElementById('totalPltCount').textContent = stats.total;
+            document.getElementById('sumBox').textContent = stats.box;
+            document.getElementById('sumPb').textContent = stats.pb;
+            document.getElementById('sumEtc').textContent = stats.etc;
+            document.getElementById('sumGroundRem').textContent = stats.groundRem;
+
+            // 공유 메시지 포맷 생성
+            // 1. 상단 [날짜 X조 물량 이동 실적] 삭제
+            let previewText = `■ 그라운드 → 벌크 이동: ${subG2B}plt\n`;
+            previewText += `■ 벌크 → 벌크 이동: ${subB2B}plt\n`;
+            previewText += `■ 벌크 → 라인 이동: ${subB2L}plt\n`;
+            previewText += `■ CFC 이동: ${subCFC}plt\n`;
+            previewText += `▶ 합계: 총 ${stats.total}plt (BOX ${stats.box} / PB ${stats.pb} / 기타 ${stats.etc})`;
+
+            // 2. 합계 바로 밑에 몇 조인지 적지 않고 비고 내용만 기재 ('공토트+숫자+plt'로 시작하는 항목은 제외)
+            const cleanedRemark = filterRemarkForShareMessage(rec.remark);
+            if (cleanedRemark !== '') {
+                previewText += `\n${cleanedRemark}`;
+            }
+
+            previewText += `\n\n■ 공토트 현황\n`;
+            previewText += `- 메쟈닌→그라운드(${stats.m2gTotal}): 6층(${f6}) / 7층(${f7}) / 8층(${f8})\n`;
+            previewText += `- 그라운드 잔여: ${stats.groundRem} / 메쟈닌 잔여: ${remMezzanine}`;
+
+            document.getElementById('sharePreviewBox').textContent = previewText;
+        }
+
+        function renderAggregateTable() {
+            const tbody = document.getElementById('aggregateTableBody');
+            let grandBox = 0, grandPb = 0, grandEtc = 0, grandPlt = 0;
+            const remarkItems = [];
+
+            const rowsHtml = TEAMS.map(team => {
+                const key = getDocKey(currentDate, team);
+                const data = committedData[key] || createEmptyRecord();
+                const stats = computeTotals(data);
+
+                grandBox += stats.box;
+                grandPb += stats.pb;
+                grandEtc += stats.etc;
+                grandPlt += stats.total;
+
+                if (data.remark && data.remark.trim() !== '') {
+                    remarkItems.push(`<div><span class="font-extrabold text-slate-900">[${team}]</span> ${escapeHtml(data.remark.trim())}</div>`);
+                }
+
+                const isCurrent = team === currentTeam;
+                const rowBg = isCurrent ? 'bg-blue-50/70' : '';
+
+                return `
+                    <tr data-row-team="${team}" class="agg-team-row cursor-pointer hover:bg-slate-50 transition ${rowBg}">
+                        <td class="py-2.5 px-2 font-extrabold ${isCurrent ? 'text-blue-600' : 'text-slate-800'}">${team}</td>
+                        <td class="py-2.5 px-2">${stats.box}</td>
+                        <td class="py-2.5 px-2">${stats.pb}</td>
+                        <td class="py-2.5 px-2">${stats.etc}</td>
+                        <td class="py-2.5 px-2 font-black text-slate-900">${stats.total}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            tbody.innerHTML = rowsHtml;
+            document.getElementById('aggTotalBox').textContent = grandBox;
+            document.getElementById('aggTotalPb').textContent = grandPb;
+            document.getElementById('aggTotalEtc').textContent = grandEtc;
+            document.getElementById('aggTotalPlt').textContent = grandPlt;
+            document.getElementById('aggHeaderTotalPlt').textContent = grandPlt;
+
+            document.querySelectorAll('.agg-team-row').forEach(row => {
+                row.addEventListener('click', () => {
+                    const t = row.getAttribute('data-row-team');
+                    if (t) selectTeam(t);
+                });
+            });
+
+            const remarksBox = document.getElementById('aggRemarksBox');
+            const remarksList = document.getElementById('aggRemarksList');
+            if (remarkItems.length > 0) {
+                remarksBox.classList.remove('hidden');
+                remarksList.innerHTML = remarkItems.join('');
+            } else {
+                remarksBox.classList.add('hidden');
+            }
+        }
+
+        function selectTeam(team) {
+            currentTeam = team;
+            isDirty = false;
+            const key = getDocKey();
+            if (committedData[key]) {
+                localDrafts[key] = JSON.parse(JSON.stringify(committedData[key]));
+            }
+            renderTeamButtons();
+            syncFormAndSummaryUI();
+            renderAggregateTable();
+            showToast(`${team} 화면으로 전환되었습니다.`, '👥');
+        }
+
+        function toggleStickyPin() {
+            isStickyPinned = !isStickyPinned;
+            const wrapper = document.getElementById('stickyWrapper');
+            const btn = document.getElementById('pinToggleBtn');
+            const text = document.getElementById('pinToggleText');
+
+            if (isStickyPinned) {
+                wrapper.classList.add('sticky', 'top-0');
+                btn.className = "shrink-0 bg-indigo-600 border border-indigo-600 text-white text-xs font-extrabold px-3.5 py-1.5 rounded-full shadow-sm active:scale-95 transition";
+                text.textContent = "고정";
+                showToast("상단 요약바가 화면에 고정되었습니다.", "📌");
+            } else {
+                wrapper.classList.remove('sticky', 'top-0');
+                btn.className = "shrink-0 bg-white border border-slate-300 text-slate-600 text-xs font-bold px-3.5 py-1.5 rounded-full active:scale-95 transition";
+                text.textContent = "고정";
+                showToast("상단 요약바 고정이 해제되었습니다.", "📍");
+            }
+        }
+
+        function handleDateChange(newDate) {
+            if (!newDate) return;
+            currentDate = newDate;
+            isDirty = false;
+            const key = getDocKey();
+            if (committedData[key]) {
+                localDrafts[key] = JSON.parse(JSON.stringify(committedData[key]));
+            }
+            formatDateLabels();
+            syncFormAndSummaryUI();
+            renderAggregateTable();
+        }
+
+        function shiftDate(days) {
+            const parts = currentDate.split('-');
+            const dt = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+            dt.setDate(dt.getDate() + days);
+            const offset = dt.getTimezoneOffset() * 60000;
+            const nextStr = new Date(dt.getTime() - offset).toISOString().split('T')[0];
+            handleDateChange(nextStr);
+        }
+
+        function copyShareReport() {
+            const textToCopy = document.getElementById('sharePreviewBox').textContent;
+            const textarea = document.createElement('textarea');
+            textarea.value = textToCopy;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                showToast("공유 메시지가 복사되었습니다!", "📋");
+            } catch (e) {
+                showToast("복사에 실패했습니다.", "⚠️");
+            }
+            document.body.removeChild(textarea);
+        }
+
+        // 백그라운드 자동 정리 로직: 오늘 기준 3일 전보다 이전 날짜의 문서 삭제
+        async function purgeExpiredFirestoreDocs() {
+            if (!db) return;
+            try {
+                const cutoffDate = getDateOffsetKST(-3);
+                const colRef = collection(db, COLLECTION_NAME);
+                const snapshot = await getDocs(colRef);
+
+                const deleteTasks = [];
+                snapshot.forEach((docSnap) => {
+                    const docId = docSnap.id;
+                    const datePart = docId.split('_')[0];
+                    if (/^\d{4}-\d{2}-\d{2}$/.test(datePart) && datePart < cutoffDate) {
+                        deleteTasks.push(deleteDoc(doc(db, COLLECTION_NAME, docId)));
+                    }
+                });
+
+                if (deleteTasks.length > 0) {
+                    await Promise.all(deleteTasks);
+                }
+            } catch (err) {
+                console.error("Background cleanup error:", err);
+            }
+        }
+
+        // Firestore 실시간 리스너
+        function startRealtimeListener() {
+            if (!db) return;
+            if (unsubscribeSnapshot) unsubscribeSnapshot();
+
+            const colRef = collection(db, COLLECTION_NAME);
+            unsubscribeSnapshot = onSnapshot(colRef, (snapshot) => {
+                setConnectionStatus('connected', '온라인 실시간 동기화');
+                const freshCommitted = {};
+                snapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    freshCommitted[docSnap.id] = data;
+
+                    if (!isDirty && docSnap.id === getDocKey()) {
+                        localDrafts[docSnap.id] = JSON.parse(JSON.stringify(data));
+                    }
+                });
+                committedData = freshCommitted;
+                syncFormAndSummaryUI();
+                renderAggregateTable();
+            }, (error) => {
+                console.error("Firestore onSnapshot error:", error);
+                setConnectionStatus('error', 'DB 연결 오류');
+            });
+        }
+
+        async function refreshFromFirestore() {
+            if (!db) return;
+            try {
+                const colRef = collection(db, COLLECTION_NAME);
+                const snap = await getDocs(colRef);
+                setConnectionStatus('connected', '온라인 실시간 동기화');
+                const freshCommitted = {};
+                snap.forEach((docSnap) => {
+                    freshCommitted[docSnap.id] = docSnap.data();
+                    if (!isDirty && docSnap.id === getDocKey()) {
+                        localDrafts[docSnap.id] = JSON.parse(JSON.stringify(docSnap.data()));
+                    }
+                });
+                committedData = freshCommitted;
+                syncFormAndSummaryUI();
+                renderAggregateTable();
+                showToast("최신 팀 실적을 불러왔습니다!", "🔄");
+            } catch (err) {
+                console.error("Refresh error:", err);
+            }
+        }
+
+        async function saveCurrentTeamData() {
+            if (!db) {
+                showToast("Firebase 연결 대기중입니다.", "⚠️");
+                return;
+            }
+
+            const key = getDocKey();
+            const rec = getActiveRecord();
+            const nowTime = new Date().toTimeString().slice(0, 5);
+
+            const payload = {
+                ...rec,
+                date: currentDate,
+                team: currentTeam,
+                updatedAt: nowTime
+            };
+
+            try {
+                const docRef = doc(db, COLLECTION_NAME, key);
+                await setDoc(docRef, payload);
+                committedData[key] = JSON.parse(JSON.stringify(payload));
+                localDrafts[key] = JSON.parse(JSON.stringify(payload));
+                isDirty = false;
+                syncFormAndSummaryUI();
+                renderAggregateTable();
+                showToast(`저장 완료! (${key})`, '✅');
+            } catch (err) {
+                console.error("Firestore save error:", err);
+                showToast(`저장 실패: ${err.message}`, "⚠️");
+            }
+        }
+
+        async function resetCurrentTeamDataInDB() {
+            const key = getDocKey();
+            const emptyRec = createEmptyRecord();
+            localDrafts[key] = emptyRec;
+            isDirty = false;
+
+            if (db) {
+                try {
+                    const docRef = doc(db, COLLECTION_NAME, key);
+                    await setDoc(docRef, {
+                        ...emptyRec,
+                        date: currentDate,
+                        team: currentTeam,
+                        updatedAt: new Date().toTimeString().slice(0, 5)
+                    });
+                    committedData[key] = JSON.parse(JSON.stringify(emptyRec));
+                } catch (err) {
+                    console.error("Firestore reset error:", err);
+                }
+            }
+            syncFormAndSummaryUI();
+            renderAggregateTable();
+            showToast(`${currentTeam} 초기화 완료`, '🔄');
+        }
+
+        // 모든 조(A조~I조)의 공토트 입력 항목을 0으로 초기화 및 DB 반영
+        async function resetAllTeamsEmptyToteData() {
+            const emptyToteFields = ['m2g_total', 'm2g_6f', 'm2g_7f', 'm2g_8f', 'rem_mezzanine'];
+            const nowTime = new Date().toTimeString().slice(0, 5);
+            const saveTasks = [];
+
+            TEAMS.forEach(team => {
+                const key = getDocKey(currentDate, team);
+                const baseRec = localDrafts[key]
+                    ? JSON.parse(JSON.stringify(localDrafts[key]))
+                    : (committedData[key] ? JSON.parse(JSON.stringify(committedData[key])) : createEmptyRecord());
+
+                emptyToteFields.forEach(field => {
+                    baseRec[field] = 0;
+                });
+
+                localDrafts[key] = JSON.parse(JSON.stringify(baseRec));
+
+                if (db) {
+                    const payload = {
+                        ...baseRec,
+                        date: currentDate,
+                        team: team,
+                        updatedAt: nowTime
+                    };
+                    committedData[key] = JSON.parse(JSON.stringify(payload));
+                    const docRef = doc(db, COLLECTION_NAME, key);
+                    saveTasks.push(setDoc(docRef, payload));
+                }
+            });
+
+            if (saveTasks.length > 0) {
+                try {
+                    await Promise.all(saveTasks);
+                } catch (err) {
+                    console.error("Empty tote reset DB error:", err);
+                    showToast("공토트 초기화 중 일부 DB 반영 오류가 발생했습니다.", "⚠️");
+                    return;
+                }
+            }
+
+            syncFormAndSummaryUI();
+            renderAggregateTable();
+            showToast("전체 조 공토트 입력 내용이 초기화되었습니다.", "🧹");
+        }
+
+        async function connectFirebase() {
+            const firebaseConfig = {
+                apiKey: "AIzaSyA1SwpNe8dIEmQKcNBdM57gAbk",
+                authDomain: "himagicdraw.firebaseapp.com",
+                projectId: "himagicdraw",
+                storageBucket: "himagicdraw.firebasestorage.app",
+                messagingSenderId: "271144041888",
+                appId: "1:271144041888:web:27d42211199a70b1d5b8c5",
+                measurementId: "G-9MNF7YV2YP"
+            };
+
+            try {
+                if (firebaseApp) {
+                    if (unsubscribeSnapshot) unsubscribeSnapshot();
+                    await deleteApp(firebaseApp);
+                }
+                firebaseApp = initializeApp(firebaseConfig, "hiDailyDirectApp_" + Date.now());
+                db = getFirestore(firebaseApp);
+
+                await purgeExpiredFirestoreDocs();
+                startRealtimeListener();
+            } catch (err) {
+                console.error("Firebase init error:", err);
+                setConnectionStatus('error', 'DB 초기화 오류');
+            }
+        }
+
+        function bindAllEvents() {
+            document.querySelectorAll('#teamButtonsContainer .team-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const team = btn.getAttribute('data-team');
+                    if (team) selectTeam(team);
+                });
+            });
+
+            document.getElementById('pinToggleBtn').addEventListener('click', toggleStickyPin);
+
+            document.querySelectorAll('.adj-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const field = btn.getAttribute('data-field');
+                    const delta = parseInt(btn.getAttribute('data-delta'), 10) || 0;
+                    const rec = getActiveRecord();
+                    rec[field] = Math.max(0, (Number(rec[field]) || 0) + delta);
+                    isDirty = true;
+                    syncFormAndSummaryUI();
+                });
+            });
+
+            document.querySelectorAll('.num-input').forEach(inp => {
+                inp.addEventListener('input', () => {
+                    const field = inp.getAttribute('data-field');
+                    const rec = getActiveRecord();
+                    const parsed = parseInt(inp.value, 10);
+                    rec[field] = isNaN(parsed) || parsed < 0 ? 0 : parsed;
+                    isDirty = true;
+                    syncFormAndSummaryUI();
+                });
+            });
+
+            document.getElementById('input_remark').addEventListener('input', (e) => {
+                const rec = getActiveRecord();
+                rec.remark = e.target.value;
+                isDirty = true;
+                syncFormAndSummaryUI();
+            });
+
+            document.getElementById('prevDateBtn').addEventListener('click', () => shiftDate(-1));
+            document.getElementById('nextDateBtn').addEventListener('click', () => shiftDate(1));
+            document.getElementById('todayDateBtn').addEventListener('click', () => handleDateChange(getTodayKST()));
+            document.getElementById('hiddenDateInput').addEventListener('change', (e) => handleDateChange(e.target.value));
+            document.getElementById('datePickerTrigger').addEventListener('click', () => {
+                const inp = document.getElementById('hiddenDateInput');
+                if (inp.showPicker) inp.showPicker();
+            });
+
+            document.getElementById('saveHeaderBtn').addEventListener('click', saveCurrentTeamData);
+            document.getElementById('resetEmptyToteBtn').addEventListener('click', resetAllTeamsEmptyToteData);
+            document.getElementById('refreshTableBtn').addEventListener('click', refreshFromFirestore);
+            document.getElementById('copyReportBtn').addEventListener('click', copyShareReport);
+
+            document.getElementById('resetHeaderBtn').addEventListener('click', () => {
+                document.getElementById('resetModalTeamName').textContent = currentTeam;
+                const modal = document.getElementById('resetModal');
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            });
+            document.getElementById('cancelResetBtn').addEventListener('click', () => {
+                const modal = document.getElementById('resetModal');
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            });
+            document.getElementById('confirmResetBtn').addEventListener('click', async () => {
+                const modal = document.getElementById('resetModal');
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                await resetCurrentTeamDataInDB();
+            });
+        }
+
+        bindAllEvents();
+        formatDateLabels();
+        renderTeamButtons();
+        syncFormAndSummaryUI();
+        renderAggregateTable();
+        connectFirebase();
+    </script>
+</body>
+</html>
