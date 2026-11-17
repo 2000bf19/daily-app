@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>일일 물류 이동 현황 v2.0</title>
+    <title>HI일일현황 v2.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -23,24 +23,28 @@
       5. 규칙 추가 시 연속 넘버링 적용: 규칙 추가 요청 시 기존 번호에 이어서 코드 상단 시스템 규칙란에 반영
       6. 공유 메시지 규칙: 노란색 영역 삭제, '실적' 단어 금지, '메시지 복사' 버튼으로 변경, 합계 중심 구성
       7. 공유 메시지 값 0 항목 제외 규칙: 이동 구분별 소계, 공토트 층별(6, 7, 8층) 수량이 0인 경우 메시지 출력에서 제외 및 간략한 포맷 적용
-      8. 상단 고정 제어 규칙: F조 선택 시에만 기본 고정 비활성화(relative), 그 외 조(A, C, D, G, I조)는 기본 고정 활성화(sticky) 적용
+      8. 상단 고정 제어 규칙: 노란색 영역(타이틀 부)은 고정에서 제외하고, 대시보드 및 조 버튼 영역만 고정/해제 제어 (F조 선택 시 기본 고정 비활성화)
+      9. 타이틀 수정 규칙: '일일 물류 이동 현황'을 'HI일일현황'으로 변경하고 글자 크기를 60% 수준으로 축소
       ================================================================================
     -->
 
-    <!-- 상단 영역 -->
-    <div id="top-header-container" class="sticky top-0 z-50 bg-[#0f172a] text-slate-100 border-b border-slate-800 px-4 pt-4 pb-3 shadow-lg">
-        <div class="max-w-md mx-auto">
-            <div class="flex items-center justify-between mb-3">
-                <div class="flex items-center gap-2">
-                    <h1 class="text-lg font-bold tracking-tight">일일 물류 이동 현황</h1>
-                    <span class="bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full font-medium">v2.0</span>
-                </div>
-                <div class="flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-950/50 px-2.5 py-1 rounded-full border border-emerald-800/50">
-                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                    <span>온라인 실시간 동기화</span>
-                </div>
+    <!-- 상단 비고정 영역 (노란색 표시 부분: HI일일현황 및 실시간 동기화)[span_2](start_span)[span_2](end_span) -->
+    <div class="bg-[#0f172a] text-slate-100 px-4 pt-3 pb-2 border-b border-slate-800/60">
+        <div class="max-w-md mx-auto flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+                <h1 class="text-xs font-bold tracking-tight text-slate-200">HI일일현황</h1>
+                <span class="bg-blue-600 text-white text-[10px] px-1.5 py-0.2 rounded font-medium">v2.0</span>
             </div>
+            <div class="flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-950/50 px-2 py-0.5 rounded-full border border-emerald-800/50">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>온라인 실시간 동기화</span>
+            </div>
+        </div>
+    </div>
 
+    <!-- 스크롤 시 고정/해제 제어 영역 (대시보드 및 조 선택 버튼) -->
+    <div id="top-header-container" class="sticky top-0 z-50 bg-[#0f172a] text-slate-100 border-b border-slate-800 px-4 pt-2.5 pb-3 shadow-lg">
+        <div class="max-w-md mx-auto">
             <!-- 대시보드 -->
             <div class="bg-slate-800/90 rounded-xl p-3 border border-slate-700/60 shadow-inner mb-3">
                 <div class="flex justify-between items-center mb-2">
@@ -508,10 +512,10 @@
 
             if (isFixed) {
                 fixedBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition bg-purple-600 text-white border border-purple-500 shadow-md";
-                headerContainer.className = "sticky top-0 z-50 bg-[#0f172a] text-slate-100 border-b border-slate-800 px-4 pt-4 pb-3 shadow-lg";
+                headerContainer.className = "sticky top-0 z-50 bg-[#0f172a] text-slate-100 border-b border-slate-800 px-4 pt-2.5 pb-3 shadow-lg";
             } else {
                 fixedBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition bg-slate-800 text-slate-300 border border-slate-700";
-                headerContainer.className = "relative z-50 bg-[#0f172a] text-slate-100 border-b border-slate-800 px-4 pt-4 pb-3 shadow-lg";
+                headerContainer.className = "relative z-50 bg-[#0f172a] text-slate-100 border-b border-slate-800 px-4 pt-2.5 pb-3 shadow-lg";
             }
         }
 
@@ -791,7 +795,7 @@
         function copyMessage() {
             const text = document.getElementById('share-preview').innerText;
             navigator.clipboard.writeText(text).then(() => {
-                alert("공유 메시지가 복사되었습니다!");
+                alert("공유 메시지터가 복사되었습니다!");
             });
         }
 
