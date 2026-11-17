@@ -2,1123 +2,805 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>일일 물량 이동 실적 v2.0</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>일일 물류 이동 현황 v2.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
     <style>
-        body {
-            font-family: 'Noto Sans KR', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background-color: #F4F6F9;
-            color: #1E293B;
-            -webkit-tap-highlight-color: transparent;
-            overscroll-behavior-y: contain;
-        }
-        input[type=number]::-webkit-inner-spin-button,
-        input[type=number]::-webkit-outer-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
-        }
-        input[type=number] {
-            -moz-appearance: textfield;
-        }
-        .no-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-        .no-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-        .card-shadow {
-            box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
-        }
-        .dark-card-shadow {
-            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18);
-        }
+        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+        body { font-family: 'Pretendard', sans-serif; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
-<body class="pb-16 select-none">
+<body class="bg-slate-100 text-slate-800 min-h-screen pb-12">
+    <!-- 
+      ================================================================================
+      [시스템 규칙 및 백그라운드 설정 정의 (System Rules & Configurations)]
+      1. 비고란 기타 합산 예외 키워드: '공토트', '토트', '빠레트', '빠렛', '빠랫', '빠랫트', '빠래트' 뒤의 숫자+plt는 기타 카운트에서 제외
+      2. 비고란 일반 자재/이관 plt: 일반 키워드 뒤의 숫자+plt(예: 21plt)는 기타에 자동 추가
+      3. 공유 메시지 줄바꿈 처리: 각 섹션 및 비고 내용 사이에 정상적인 줄바꿈(\n) 적용
+      4. 공유 메시지 예외 사항: 조별 상세(노란색 영역)는 메시지에서 완전히 제외, 비고 내역의 조 이름(예: D조:) 제외
+      5. 규칙 추가 시 연속 넘버링 적용: 규칙 추가 요청 시 기존 번호에 이어서 코드 상단 시스템 규칙란에 반영
+      6. 공유 메시지 규칙: 노란색 영역 삭제, '실적' 단어 금지, '메시지 복사' 버튼으로 변경, 합계 중심 구성
+      7. 공유 메시지 값 0 항목 제외 규칙: 이동 구분별 소계, 공토트 층별(6, 7, 8층) 수량이 0인 경우 메시지 출력에서 제외 및 간략한 포맷 적용
+      8. 상단 고정 제어 규칙: F조 선택 시에만 기본 고정 비활성화(relative), 그 외 조(A, C, D, G, I조)는 기본 고정 활성화(sticky) 적용
+      ================================================================================
+    -->
 
-    <!-- 토스트 알림 -->
-    <div id="toast" class="fixed top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 transition-all duration-300 transform -translate-y-2">
-        <div class="bg-slate-900/95 text-white text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-full shadow-lg flex items-center gap-2 whitespace-nowrap">
-            <span id="toastIcon">✅</span>
-            <span id="toastText">저장되었습니다.</span>
+    <!-- 상단 영역 -->
+    <div id="top-header-container" class="sticky top-0 z-50 bg-[#0f172a] text-slate-100 border-b border-slate-800 px-4 pt-4 pb-3 shadow-lg">
+        <div class="max-w-md mx-auto">
+            <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center gap-2">
+                    <h1 class="text-lg font-bold tracking-tight">일일 물류 이동 현황</h1>
+                    <span class="bg-blue-600 text-white text-xs px-2 py-0.5 rounded-full font-medium">v2.0</span>
+                </div>
+                <div class="flex items-center gap-1.5 text-xs text-emerald-400 bg-emerald-950/50 px-2.5 py-1 rounded-full border border-emerald-800/50">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                    <span>온라인 실시간 동기화</span>
+                </div>
+            </div>
+
+            <!-- 대시보드 -->
+            <div class="bg-slate-800/90 rounded-xl p-3 border border-slate-700/60 shadow-inner mb-3">
+                <div class="flex justify-between items-center mb-2">
+                    <span id="dashboard-title" class="text-sm font-semibold text-blue-300">D조 입력 합계 총 0 PLT</span>
+                    <div class="flex gap-1.5">
+                        <button onclick="saveData()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-2.5 py-1 rounded-lg font-medium transition flex items-center gap-1">💾 저장</button>
+                        <button onclick="resetData()" class="bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs px-2.5 py-1 rounded-lg font-medium transition">초기화</button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-4 gap-1.5 text-center">
+                    <div class="bg-slate-900/70 p-1.5 rounded-lg border border-slate-800">
+                        <div class="text-[10px] text-slate-400 font-medium">BOX</div>
+                        <div id="dash-box" class="text-sm font-bold text-slate-100">0</div>
+                    </div>
+                    <div class="bg-slate-900/70 p-1.5 rounded-lg border border-slate-800">
+                        <div class="text-[10px] text-slate-400 font-medium">PB</div>
+                        <div id="dash-pb" class="text-sm font-bold text-slate-100">0</div>
+                    </div>
+                    <div class="bg-slate-900/70 p-1.5 rounded-lg border border-slate-800">
+                        <div class="text-[10px] text-slate-400 font-medium">기타</div>
+                        <div id="dash-etc" class="text-sm font-bold text-amber-400">0</div>
+                    </div>
+                    <div class="bg-slate-900/70 p-1.5 rounded-lg border border-slate-800">
+                        <div class="text-[10px] text-slate-400 font-medium">총합계</div>
+                        <div id="dash-total" class="text-sm font-bold text-purple-300">0 PLT</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 조 선택 버튼 -->
+            <div class="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
+                <button onclick="toggleFixed()" id="btn-fixed" class="px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition bg-purple-600 text-white border border-purple-500 shadow-md">고정</button>
+                <button onclick="selectTeam('A조')" id="btn-A조" class="team-btn px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition bg-slate-800 text-slate-300 border border-slate-700">A조</button>
+                <button onclick="selectTeam('C조')" id="btn-C조" class="team-btn px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition bg-slate-800 text-slate-300 border border-slate-700">C조</button>
+                <button onclick="selectTeam('D조')" id="btn-D조" class="team-btn px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition bg-blue-600 text-white border border-blue-500 shadow-md">D조</button>
+                <button onclick="selectTeam('F조')" id="btn-F조" class="team-btn px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition bg-slate-800 text-slate-300 border border-slate-700">F조</button>
+                <button onclick="selectTeam('G조')" id="btn-G조" class="team-btn px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition bg-slate-800 text-slate-300 border border-slate-700">G조</button>
+                <button onclick="selectTeam('I조')" id="btn-I조" class="team-btn px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition bg-slate-800 text-slate-300 border border-slate-700">I조</button>
+            </div>
         </div>
     </div>
 
-    <!-- 메인 컨테이너 -->
-    <div class="max-w-lg mx-auto px-3.5 pt-3">
-
-        <!-- 1. 상단 헤더 영역 -->
-        <header class="flex items-center justify-between gap-1.5 mb-2.5">
-            <div class="flex items-center gap-1.5">
-                <h1 class="text-[18px] sm:text-xl font-black tracking-tight text-slate-900">일일 물량 이동 실적</h1>
-                <span class="bg-blue-600 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-sm">v2.0</span>
-            </div>
-            <div class="flex items-center gap-1.5">
-                <div id="onlineStatusBadge" class="flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-700 text-[10px] sm:text-[11px] font-bold px-2.5 py-1.5 rounded-full transition">
-                    <span id="onlineDot" class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                    <span id="onlineText">서버 연결 중...</span>
-                </div>
-            </div>
-        </header>
-
-        <!-- 2. 상단 고정 가능 컨트롤 영역 (요약 대시보드 + 조 선택 + 고정 토글) -->
-        <div id="stickyWrapper" class="sticky top-0 z-30 bg-[#F4F6F9]/95 backdrop-blur-sm pt-1 pb-2.5 -mx-3.5 px-3.5 transition-all">
-            
-            <!-- 다크 네이비 요약 카드 -->
-            <div class="bg-[#0F172A] text-white rounded-2xl p-3.5 dark-card-shadow mb-2.5">
-                <div class="flex items-center justify-between mb-2.5">
-                    <div class="flex items-baseline gap-1.5">
-                        <span id="summaryTeamLabel" class="text-xs sm:text-sm font-bold text-slate-200">D조 입력 합계</span>
-                        <span class="text-sm sm:text-base font-extrabold text-sky-400">총 <span id="totalPltCount">0</span> PLT</span>
-                    </div>
-                    <div class="flex items-center gap-1.5">
-                        <button type="button" id="saveHeaderBtn" class="bg-blue-600 hover:bg-blue-500 active:scale-95 text-white text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1 shadow transition">
-                            <span>💾</span>
-                            <span>저장</span>
-                        </button>
-                        <button type="button" id="resetHeaderBtn" class="bg-slate-700/90 hover:bg-slate-700 active:scale-95 text-slate-200 text-xs font-bold px-2.5 py-1.5 rounded-xl transition">
-                            <span>초기화</span>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- 4대 핵심 지표 카드 -->
-                <div class="grid grid-cols-4 gap-2">
-                    <div class="bg-[#1E293B] rounded-xl py-2 px-1 text-center border border-slate-700/50">
-                        <div class="text-[10px] font-bold text-slate-400 mb-0.5">BOX</div>
-                        <div id="sumBox" class="text-base sm:text-lg font-black text-white leading-tight">0</div>
-                    </div>
-                    <div class="bg-[#1E293B] rounded-xl py-2 px-1 text-center border border-slate-700/50">
-                        <div class="text-[10px] font-bold text-slate-400 mb-0.5">PB</div>
-                        <div id="sumPb" class="text-base sm:text-lg font-black text-white leading-tight">0</div>
-                    </div>
-                    <div class="bg-[#1E293B] rounded-xl py-2 px-1 text-center border border-slate-700/50">
-                        <div class="text-[10px] font-bold text-slate-400 mb-0.5">기타</div>
-                        <div id="sumEtc" class="text-base sm:text-lg font-black text-amber-400 leading-tight">0</div>
-                    </div>
-                    <div class="bg-[#1E293B] rounded-xl py-2 px-1 text-center border border-slate-700/50">
-                        <div class="text-[10px] font-bold text-slate-400 mb-0.5">그라운드 잔여</div>
-                        <div id="sumGroundRem" class="text-base sm:text-lg font-black text-purple-400 leading-tight">0</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- 3. 상단 고정 토글 & 조 선택 바 (A조, C조, D조, F조, G조, I조) -->
-            <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-                <button type="button" id="pinToggleBtn" class="shrink-0 bg-indigo-600 border border-indigo-600 text-white text-xs font-extrabold px-3.5 py-1.5 rounded-full shadow-sm active:scale-95 transition">
-                    <span id="pinToggleText">고정</span>
-                </button>
-                <div id="teamButtonsContainer" class="flex items-center gap-1.5">
-                    <button type="button" data-team="A조" class="team-btn shrink-0 px-3.5 py-1.5 rounded-full text-xs font-extrabold border transition active:scale-95 bg-white text-slate-700 border-slate-200">A조</button>
-                    <button type="button" data-team="C조" class="team-btn shrink-0 px-3.5 py-1.5 rounded-full text-xs font-extrabold border transition active:scale-95 bg-white text-slate-700 border-slate-200">C조</button>
-                    <button type="button" data-team="D조" class="team-btn shrink-0 px-3.5 py-1.5 rounded-full text-xs font-extrabold border transition active:scale-95 bg-blue-600 text-white border-blue-600 shadow-sm">D조</button>
-                    <button type="button" data-team="F조" class="team-btn shrink-0 px-3.5 py-1.5 rounded-full text-xs font-extrabold border transition active:scale-95 bg-white text-slate-700 border-slate-200">F조</button>
-                    <button type="button" data-team="G조" class="team-btn shrink-0 px-3.5 py-1.5 rounded-full text-xs font-extrabold border transition active:scale-95 bg-white text-slate-700 border-slate-200">G조</button>
-                    <button type="button" data-team="I조" class="team-btn shrink-0 px-3.5 py-1.5 rounded-full text-xs font-extrabold border transition active:scale-95 bg-white text-slate-700 border-slate-200">I조</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- 4. 날짜 선택 컨트롤 바 -->
-        <section class="bg-white rounded-2xl px-3 py-2.5 mb-3 border border-slate-200/80 card-shadow flex items-center justify-between">
-            <button type="button" id="prevDateBtn" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 flex items-center justify-center text-slate-700 font-black text-sm transition">
-                ◀
-            </button>
+    <!-- 스크롤 가능한 본문 영역 -->
+    <div class="max-w-md mx-auto px-4 pt-3 space-y-4">
+        <!-- 날짜 바 -->
+        <div class="bg-white border border-slate-200 rounded-xl p-2.5 flex items-center justify-between shadow-sm">
+            <button onclick="changeDate(-1)" class="p-1 text-slate-600 hover:text-slate-900 rounded-lg bg-slate-100">◀</button>
             <div class="flex items-center gap-2">
-                <div class="relative flex items-center gap-1.5 cursor-pointer" id="datePickerTrigger">
-                    <span id="formattedDateDisplay" class="text-sm sm:text-base font-black text-slate-900">2026. 11. 17.</span>
-                    <span class="text-xs text-slate-400">⌄</span>
-                    <span id="formattedDayDisplay" class="text-xs sm:text-sm font-bold text-slate-500">(화)</span>
-                    <input type="date" id="hiddenDateInput" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full">
-                </div>
-                <button type="button" id="todayDateBtn" class="bg-blue-50 hover:bg-blue-100 text-blue-600 text-[11px] font-extrabold px-2.5 py-1 rounded-lg transition">
-                    오늘
-                </button>
+                <span id="date-display" class="text-sm font-medium text-slate-700">2026. 11. 17. (화)</span>
+                <button onclick="setToday()" class="bg-blue-50 text-blue-600 border border-blue-200 text-xs px-2 py-0.5 rounded font-medium">오늘</button>
             </div>
-            <button type="button" id="nextDateBtn" class="w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 active:scale-95 flex items-center justify-center text-slate-700 font-black text-sm transition">
-                ▶
-            </button>
-        </section>
+            <button onclick="changeDate(1)" class="p-1 text-slate-600 hover:text-slate-900 rounded-lg bg-slate-100">▶</button>
+        </div>
 
-        <!-- 5. 물량 이동 입력 섹션 컨테이너 -->
-        <div id="teamInputSections" class="space-y-3">
+        <!-- 1. 그라운드 → 벌크 이동 -->
+        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+            <div class="bg-sky-500/60 border-b border-sky-600/40 px-3 py-2 flex justify-between items-center">
+                <h3 class="text-xs font-bold text-sky-950">1. 그라운드 → 벌크 이동</h3>
+                <span id="subtotal-1" class="text-xs font-semibold text-sky-950 bg-white/60 px-2 py-0.5 rounded">소계 0</span>
+            </div>
+            <div class="p-3 grid grid-cols-3 gap-2">
+                <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 text-center">
+                    <div class="text-[11px] text-sky-900 mb-1 font-bold">BOX</div>
+                    <div class="flex items-center justify-center gap-1.5">
+                        <button onclick="updateVal('sec1_box', -1)" class="w-7 h-7 rounded bg-white border border-slate-300 text-sky-800 font-bold text-sm shadow-sm flex items-center justify-center">-</button>
+                        <input type="number" id="sec1_box" value="0" oninput="calculate()" class="w-10 text-center bg-transparent text-sky-900 font-bold text-sm focus:outline-none">
+                        <button onclick="updateVal('sec1_box', 1)" class="w-7 h-7 rounded bg-white border border-slate-300 text-sky-800 font-bold text-sm shadow-sm flex items-center justify-center">+</button>
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 text-center">
+                    <div class="text-[11px] text-sky-900 mb-1 font-bold">PB</div>
+                    <div class="flex items-center justify-center gap-1.5">
+                        <button onclick="updateVal('sec1_pb', -1)" class="w-7 h-7 rounded bg-white border border-slate-300 text-sky-800 font-bold text-sm shadow-sm flex items-center justify-center">-</button>
+                        <input type="number" id="sec1_pb" value="0" oninput="calculate()" class="w-10 text-center bg-transparent text-sky-900 font-bold text-sm focus:outline-none">
+                        <button onclick="updateVal('sec1_pb', 1)" class="w-7 h-7 rounded bg-white border border-slate-300 text-sky-800 font-bold text-sm shadow-sm flex items-center justify-center">+</button>
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 text-center">
+                    <div class="text-[11px] text-sky-900 mb-1 font-bold">기타</div>
+                    <div class="flex items-center justify-center gap-1.5">
+                        <button onclick="updateVal('sec1_etc', -1)" class="w-7 h-7 rounded bg-white border border-slate-300 text-sky-800 font-bold text-sm shadow-sm flex items-center justify-center">-</button>
+                        <input type="number" id="sec1_etc" value="0" oninput="calculate()" class="w-10 text-center bg-transparent text-sky-900 font-bold text-sm focus:outline-none">
+                        <button onclick="updateVal('sec1_etc', 1)" class="w-7 h-7 rounded bg-white border border-slate-300 text-sky-800 font-bold text-sm shadow-sm flex items-center justify-center">+</button>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-            <!-- 1. 그라운드 → 벌크 이동 -->
-            <section class="bg-white rounded-2xl overflow-hidden border border-slate-200/70 card-shadow">
-                <div class="bg-[#DBEAFE] px-4 py-2.5 flex items-center justify-between">
-                    <h2 class="text-sm font-extrabold text-slate-800">1. 그라운드 → 벌크 이동</h2>
-                    <span class="bg-white/95 text-blue-700 text-xs font-extrabold px-2.5 py-0.5 rounded-full">
-                        소계 <span id="sub_g2b">0</span>
-                    </span>
-                </div>
-                <div class="p-3 grid grid-cols-3 gap-2">
-                    <div class="bg-slate-50/70 border border-slate-200/80 rounded-xl p-2 text-center">
-                        <div class="text-[11px] font-extrabold text-slate-600 mb-1">BOX</div>
-                        <div class="flex items-center justify-between gap-1">
-                            <button type="button" data-field="g2b_box" data-delta="-1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 font-black text-base active:bg-slate-100">-</button>
-                            <input type="number" id="input_g2b_box" data-field="g2b_box" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
-                            <button type="button" data-field="g2b_box" data-delta="1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-blue-600 font-black text-base active:bg-blue-50">+</button>
-                        </div>
-                    </div>
-                    <div class="bg-slate-50/70 border border-slate-200/80 rounded-xl p-2 text-center">
-                        <div class="text-[11px] font-extrabold text-slate-600 mb-1">PB</div>
-                        <div class="flex items-center justify-between gap-1">
-                            <button type="button" data-field="g2b_pb" data-delta="-1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 font-black text-base active:bg-slate-100">-</button>
-                            <input type="number" id="input_g2b_pb" data-field="g2b_pb" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
-                            <button type="button" data-field="g2b_pb" data-delta="1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-blue-600 font-black text-base active:bg-blue-50">+</button>
-                        </div>
-                    </div>
-                    <div class="bg-slate-50/70 border border-slate-200/80 rounded-xl p-2 text-center">
-                        <div class="text-[11px] font-extrabold text-slate-600 mb-1">기타</div>
-                        <div class="flex items-center justify-between gap-1">
-                            <button type="button" data-field="g2b_etc" data-delta="-1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 font-black text-base active:bg-slate-100">-</button>
-                            <input type="number" id="input_g2b_etc" data-field="g2b_etc" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
-                            <button type="button" data-field="g2b_etc" data-delta="1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-blue-600 font-black text-base active:bg-blue-50">+</button>
-                        </div>
+        <!-- 2. 벌크 → 벌크 이동 -->
+        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+            <div class="bg-emerald-500/60 border-b border-emerald-600/40 px-3 py-2 flex justify-between items-center">
+                <h3 class="text-xs font-bold text-emerald-950">2. 벌크 → 벌크 이동</h3>
+                <span id="subtotal-2" class="text-xs font-semibold text-emerald-950 bg-white/60 px-2 py-0.5 rounded">소계 0</span>
+            </div>
+            <div class="p-3 grid grid-cols-3 gap-2">
+                <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 text-center">
+                    <div class="text-[11px] text-emerald-900 mb-1 font-bold">BOX</div>
+                    <div class="flex items-center justify-center gap-1.5">
+                        <button onclick="updateVal('sec2_box', -1)" class="w-7 h-7 rounded bg-white border border-slate-300 text-emerald-800 font-bold text-sm shadow-sm flex items-center justify-center">-</button>
+                        <input type="number" id="sec2_box" value="0" oninput="calculate()" class="w-10 text-center bg-transparent text-emerald-900 font-bold text-sm focus:outline-none">
+                        <button onclick="updateVal('sec2_box', 1)" class="w-7 h-7 rounded bg-white border border-slate-300 text-emerald-800 font-bold text-sm shadow-sm flex items-center justify-center">+</button>
                     </div>
                 </div>
-            </section>
+                <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 text-center">
+                    <div class="text-[11px] text-emerald-900 mb-1 font-bold">PB</div>
+                    <div class="flex items-center justify-center gap-1.5">
+                        <button onclick="updateVal('sec2_pb', -1)" class="w-7 h-7 rounded bg-white border border-slate-300 text-emerald-800 font-bold text-sm shadow-sm flex items-center justify-center">-</button>
+                        <input type="number" id="sec2_pb" value="0" oninput="calculate()" class="w-10 text-center bg-transparent text-emerald-900 font-bold text-sm focus:outline-none">
+                        <button onclick="updateVal('sec2_pb', 1)" class="w-7 h-7 rounded bg-white border border-slate-300 text-emerald-800 font-bold text-sm shadow-sm flex items-center justify-center">+</button>
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 text-center">
+                    <div class="text-[11px] text-emerald-900 mb-1 font-bold">기타</div>
+                    <div class="flex items-center justify-center gap-1.5">
+                        <button onclick="updateVal('sec2_etc', -1)" class="w-7 h-7 rounded bg-white border border-slate-300 text-emerald-800 font-bold text-sm shadow-sm flex items-center justify-center">-</button>
+                        <input type="number" id="sec2_etc" value="0" oninput="calculate()" class="w-10 text-center bg-transparent text-emerald-900 font-bold text-sm focus:outline-none">
+                        <button onclick="updateVal('sec2_etc', 1)" class="w-7 h-7 rounded bg-white border border-slate-300 text-emerald-800 font-bold text-sm shadow-sm flex items-center justify-center">+</button>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-            <!-- 2. 벌크 → 벌크 이동 -->
-            <section class="bg-white rounded-2xl overflow-hidden border border-slate-200/70 card-shadow">
-                <div class="bg-[#A7F3D0] px-4 py-2.5 flex items-center justify-between">
-                    <h2 class="text-sm font-extrabold text-slate-800">2. 벌크 → 벌크 이동</h2>
-                    <span class="bg-white/95 text-emerald-700 text-xs font-extrabold px-2.5 py-0.5 rounded-full">
-                        소계 <span id="sub_b2b">0</span>
-                    </span>
-                </div>
-                <div class="p-3 grid grid-cols-3 gap-2">
-                    <div class="bg-slate-50/70 border border-slate-200/80 rounded-xl p-2 text-center">
-                        <div class="text-[11px] font-extrabold text-slate-600 mb-1">BOX</div>
-                        <div class="flex items-center justify-between gap-1">
-                            <button type="button" data-field="b2b_box" data-delta="-1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 font-black text-base active:bg-slate-100">-</button>
-                            <input type="number" id="input_b2b_box" data-field="b2b_box" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
-                            <button type="button" data-field="b2b_box" data-delta="1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-emerald-600 font-black text-base active:bg-emerald-50">+</button>
-                        </div>
-                    </div>
-                    <div class="bg-slate-50/70 border border-slate-200/80 rounded-xl p-2 text-center">
-                        <div class="text-[11px] font-extrabold text-slate-600 mb-1">PB</div>
-                        <div class="flex items-center justify-between gap-1">
-                            <button type="button" data-field="b2b_pb" data-delta="-1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 font-black text-base active:bg-slate-100">-</button>
-                            <input type="number" id="input_b2b_pb" data-field="b2b_pb" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
-                            <button type="button" data-field="b2b_pb" data-delta="1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-emerald-600 font-black text-base active:bg-emerald-50">+</button>
-                        </div>
-                    </div>
-                    <div class="bg-slate-50/70 border border-slate-200/80 rounded-xl p-2 text-center">
-                        <div class="text-[11px] font-extrabold text-slate-600 mb-1">기타</div>
-                        <div class="flex items-center justify-between gap-1">
-                            <button type="button" data-field="b2b_etc" data-delta="-1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 font-black text-base active:bg-slate-100">-</button>
-                            <input type="number" id="input_b2b_etc" data-field="b2b_etc" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
-                            <button type="button" data-field="b2b_etc" data-delta="1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-emerald-600 font-black text-base active:bg-emerald-50">+</button>
-                        </div>
+        <!-- 3. 벌크 → 라인 이동 -->
+        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+            <div class="bg-amber-500/60 border-b border-amber-600/40 px-3 py-2 flex justify-between items-center">
+                <h3 class="text-xs font-bold text-amber-950">3. 벌크 → 라인 이동</h3>
+                <span id="subtotal-3" class="text-xs font-semibold text-amber-950 bg-white/60 px-2 py-0.5 rounded">소계 0</span>
+            </div>
+            <div class="p-3 grid grid-cols-3 gap-2">
+                <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 text-center">
+                    <div class="text-[11px] text-amber-900 mb-1 font-bold">BOX</div>
+                    <div class="flex items-center justify-center gap-1.5">
+                        <button onclick="updateVal('sec3_box', -1)" class="w-7 h-7 rounded bg-white border border-slate-300 text-amber-800 font-bold text-sm shadow-sm flex items-center justify-center">-</button>
+                        <input type="number" id="sec3_box" value="0" oninput="calculate()" class="w-10 text-center bg-transparent text-amber-900 font-bold text-sm focus:outline-none">
+                        <button onclick="updateVal('sec3_box', 1)" class="w-7 h-7 rounded bg-white border border-slate-300 text-amber-800 font-bold text-sm shadow-sm flex items-center justify-center">+</button>
                     </div>
                 </div>
-            </section>
+                <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 text-center">
+                    <div class="text-[11px] text-amber-900 mb-1 font-bold">PB</div>
+                    <div class="flex items-center justify-center gap-1.5">
+                        <button onclick="updateVal('sec3_pb', -1)" class="w-7 h-7 rounded bg-white border border-slate-300 text-amber-800 font-bold text-sm shadow-sm flex items-center justify-center">-</button>
+                        <input type="number" id="sec3_pb" value="0" oninput="calculate()" class="w-10 text-center bg-transparent text-amber-900 font-bold text-sm focus:outline-none">
+                        <button onclick="updateVal('sec3_pb', 1)" class="w-7 h-7 rounded bg-white border border-slate-300 text-amber-800 font-bold text-sm shadow-sm flex items-center justify-center">+</button>
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 text-center">
+                    <div class="text-[11px] text-amber-900 mb-1 font-bold">기타</div>
+                    <div class="flex items-center justify-center gap-1.5">
+                        <button onclick="updateVal('sec3_etc', -1)" class="w-7 h-7 rounded bg-white border border-slate-300 text-amber-800 font-bold text-sm shadow-sm flex items-center justify-center">-</button>
+                        <input type="number" id="sec3_etc" value="0" oninput="calculate()" class="w-10 text-center bg-transparent text-amber-900 font-bold text-sm focus:outline-none">
+                        <button onclick="updateVal('sec3_etc', 1)" class="w-7 h-7 rounded bg-white border border-slate-300 text-amber-800 font-bold text-sm shadow-sm flex items-center justify-center">+</button>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-            <!-- 3. 벌크 → 라인 이동 -->
-            <section class="bg-white rounded-2xl overflow-hidden border border-slate-200/70 card-shadow">
-                <div class="bg-[#FDE68A] px-4 py-2.5 flex items-center justify-between">
-                    <h2 class="text-sm font-extrabold text-slate-800">3. 벌크 → 라인 이동</h2>
-                    <span class="bg-white/95 text-amber-700 text-xs font-extrabold px-2.5 py-0.5 rounded-full">
-                        소계 <span id="sub_b2l">0</span>
-                    </span>
-                </div>
-                <div class="p-3 grid grid-cols-3 gap-2">
-                    <div class="bg-slate-50/70 border border-slate-200/80 rounded-xl p-2 text-center">
-                        <div class="text-[11px] font-extrabold text-slate-600 mb-1">BOX</div>
-                        <div class="flex items-center justify-between gap-1">
-                            <button type="button" data-field="b2l_box" data-delta="-1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 font-black text-base active:bg-slate-100">-</button>
-                            <input type="number" id="input_b2l_box" data-field="b2l_box" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
-                            <button type="button" data-field="b2l_box" data-delta="1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-amber-600 font-black text-base active:bg-amber-50">+</button>
-                        </div>
-                    </div>
-                    <div class="bg-slate-50/70 border border-slate-200/80 rounded-xl p-2 text-center">
-                        <div class="text-[11px] font-extrabold text-slate-600 mb-1">PB</div>
-                        <div class="flex items-center justify-between gap-1">
-                            <button type="button" data-field="b2l_pb" data-delta="-1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 font-black text-base active:bg-slate-100">-</button>
-                            <input type="number" id="input_b2l_pb" data-field="b2l_pb" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
-                            <button type="button" data-field="b2l_pb" data-delta="1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-amber-600 font-black text-base active:bg-amber-50">+</button>
-                        </div>
-                    </div>
-                    <div class="bg-slate-50/70 border border-slate-200/80 rounded-xl p-2 text-center">
-                        <div class="text-[11px] font-extrabold text-slate-600 mb-1">기타</div>
-                        <div class="flex items-center justify-between gap-1">
-                            <button type="button" data-field="b2l_etc" data-delta="-1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 font-black text-base active:bg-slate-100">-</button>
-                            <input type="number" id="input_b2l_etc" data-field="b2l_etc" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
-                            <button type="button" data-field="b2l_etc" data-delta="1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-amber-600 font-black text-base active:bg-amber-50">+</button>
-                        </div>
+        <!-- 4. CFC 이동 -->
+        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+            <div class="bg-indigo-500/60 border-b border-indigo-600/40 px-3 py-2 flex justify-between items-center">
+                <h3 class="text-xs font-bold text-indigo-950">4. CFC 이동</h3>
+                <span id="subtotal-4" class="text-xs font-semibold text-indigo-950 bg-white/60 px-2 py-0.5 rounded">소계 0</span>
+            </div>
+            <div class="p-3 grid grid-cols-3 gap-2">
+                <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 text-center">
+                    <div class="text-[11px] text-indigo-900 mb-1 font-bold">BOX</div>
+                    <div class="flex items-center justify-center gap-1.5">
+                        <button onclick="updateVal('sec4_box', -1)" class="w-7 h-7 rounded bg-white border border-slate-300 text-indigo-800 font-bold text-sm shadow-sm flex items-center justify-center">-</button>
+                        <input type="number" id="sec4_box" value="0" oninput="calculate()" class="w-10 text-center bg-transparent text-indigo-900 font-bold text-sm focus:outline-none">
+                        <button onclick="updateVal('sec4_box', 1)" class="w-7 h-7 rounded bg-white border border-slate-300 text-indigo-800 font-bold text-sm shadow-sm flex items-center justify-center">+</button>
                     </div>
                 </div>
-            </section>
+                <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 text-center">
+                    <div class="text-[11px] text-indigo-900 mb-1 font-bold">PB</div>
+                    <div class="flex items-center justify-center gap-1.5">
+                        <button onclick="updateVal('sec4_pb', -1)" class="w-7 h-7 rounded bg-white border border-slate-300 text-indigo-800 font-bold text-sm shadow-sm flex items-center justify-center">-</button>
+                        <input type="number" id="sec4_pb" value="0" oninput="calculate()" class="w-10 text-center bg-transparent text-indigo-900 font-bold text-sm focus:outline-none">
+                        <button onclick="updateVal('sec4_pb', 1)" class="w-7 h-7 rounded bg-white border border-slate-300 text-indigo-800 font-bold text-sm shadow-sm flex items-center justify-center">+</button>
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-2 rounded-lg border border-slate-200 text-center">
+                    <div class="text-[11px] text-indigo-900 mb-1 font-bold">기타</div>
+                    <div class="flex items-center justify-center gap-1.5">
+                        <button onclick="updateVal('sec4_etc', -1)" class="w-7 h-7 rounded bg-white border border-slate-300 text-indigo-800 font-bold text-sm shadow-sm flex items-center justify-center">-</button>
+                        <input type="number" id="sec4_etc" value="0" oninput="calculate()" class="w-10 text-center bg-transparent text-indigo-900 font-bold text-sm focus:outline-none">
+                        <button onclick="updateVal('sec4_etc', 1)" class="w-7 h-7 rounded bg-white border border-slate-300 text-indigo-800 font-bold text-sm shadow-sm flex items-center justify-center">+</button>
+                    </div>
+                </div>
+            </div>
+        </div>
 
-            <!-- 4. CFC / 롤테이너 이동 -->
-            <section class="bg-white rounded-2xl overflow-hidden border border-slate-200/70 card-shadow">
-                <div class="bg-[#FECDD3] px-4 py-2.5 flex items-center justify-between">
-                    <h2 class="text-sm font-extrabold text-slate-800">4. CFC / 롤테이너 이동</h2>
-                    <span class="bg-white/95 text-rose-700 text-xs font-extrabold px-2.5 py-0.5 rounded-full">
-                        소계 <span id="sub_cfc">0</span>
-                    </span>
+        <!-- 5. 공토트 현황 -->
+        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+            <div class="bg-purple-500/60 border-b border-purple-600/40 px-3 py-2.5 flex justify-between items-center">
+                <h3 class="text-xs font-bold text-purple-950">5. 공토트 현황</h3>
+                <div class="flex items-center gap-2">
+                    <button onclick="resetToteData()" class="bg-purple-700 hover:bg-purple-800 text-white text-[11px] px-2.5 py-1 rounded-lg font-semibold transition shadow-sm">공토트 초기화</button>
+                    <span id="tote-subtotal" class="text-xs font-semibold text-purple-950 bg-white/60 px-2 py-0.5 rounded">층별 차감 합계 -0</span>
                 </div>
-                <div class="p-3 grid grid-cols-3 gap-2">
-                    <div class="bg-slate-50/70 border border-slate-200/80 rounded-xl p-2 text-center">
-                        <div class="text-[11px] font-extrabold text-slate-600 mb-1">BOX</div>
-                        <div class="flex items-center justify-between gap-1">
-                            <button type="button" data-field="cfc_box" data-delta="-1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 font-black text-base active:bg-slate-100">-</button>
-                            <input type="number" id="input_cfc_box" data-field="cfc_box" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
-                            <button type="button" data-field="cfc_box" data-delta="1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-rose-600 font-black text-base active:bg-rose-50">+</button>
-                        </div>
-                    </div>
-                    <div class="bg-slate-50/70 border border-slate-200/80 rounded-xl p-2 text-center">
-                        <div class="text-[11px] font-extrabold text-slate-600 mb-1">PB</div>
-                        <div class="flex items-center justify-between gap-1">
-                            <button type="button" data-field="cfc_pb" data-delta="-1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 font-black text-base active:bg-slate-100">-</button>
-                            <input type="number" id="input_cfc_pb" data-field="cfc_pb" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
-                            <button type="button" data-field="cfc_pb" data-delta="1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-rose-600 font-black text-base active:bg-rose-50">+</button>
-                        </div>
-                    </div>
-                    <div class="bg-slate-50/70 border border-slate-200/80 rounded-xl p-2 text-center">
-                        <div class="text-[11px] font-extrabold text-slate-600 mb-1">기타</div>
-                        <div class="flex items-center justify-between gap-1">
-                            <button type="button" data-field="cfc_etc" data-delta="-1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 font-black text-base active:bg-slate-100">-</button>
-                            <input type="number" id="input_cfc_etc" data-field="cfc_etc" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
-                            <button type="button" data-field="cfc_etc" data-delta="1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-rose-600 font-black text-base active:bg-rose-50">+</button>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- 5. 공토트 이동 및 잔여 현황 -->
-            <section class="bg-white rounded-2xl overflow-hidden border border-slate-200/70 card-shadow">
-                <div class="bg-[#EDE9FE] px-3.5 py-2.5 flex items-center justify-between gap-1.5">
-                    <div class="flex items-center gap-1.5 flex-wrap">
-                        <h2 class="text-sm font-extrabold text-purple-950">5. 공토트 이동 및 잔여 현황</h2>
-                        <button type="button" id="resetEmptyToteBtn" class="bg-purple-600 hover:bg-purple-500 active:scale-95 text-white text-[11px] font-extrabold px-2.5 py-1 rounded-full shadow-xs transition">
-                            공토트 초기화
-                        </button>
-                    </div>
-                    <span class="bg-white/95 text-purple-700 text-xs font-extrabold px-2.5 py-0.5 rounded-full shrink-0">
-                        층별 차감 합계 -<span id="floorDeductSum">0</span>
-                    </span>
-                </div>
-                <div class="p-3 space-y-2.5">
-                    <div class="bg-slate-50/80 border border-slate-200/80 rounded-2xl p-3 space-y-3">
-                        <div class="flex items-center justify-between gap-2">
-                            <div class="min-w-0">
-                                <div class="text-sm font-extrabold text-slate-800">메쟈닌 → 그라운드</div>
-                                <div class="text-[10px] tracking-tighter whitespace-nowrap text-slate-500 leading-tight mt-0.5">아래 6·7·8층 입력 개수가 자동 차감됩니다</div>
-                            </div>
-                            <div class="flex items-center gap-1.5 shrink-0">
-                                <button type="button" data-field="m2g_total" data-delta="-1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 font-black text-base active:bg-slate-100">-</button>
-                                <input type="number" id="input_m2g_total" data-field="m2g_total" value="0" min="0" class="num-input w-12 h-9 text-center font-black text-base text-slate-900 bg-white border border-slate-200 rounded-xl focus:outline-none">
-                                <button type="button" data-field="m2g_total" data-delta="1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-purple-600 font-black text-base active:bg-purple-50">+</button>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-3 gap-2">
-                            <div class="bg-white border border-slate-200/90 rounded-xl p-2 text-center">
-                                <div class="text-xs font-extrabold text-slate-700 mb-1.5">6층</div>
-                                <div class="flex items-center justify-between gap-1">
-                                    <button type="button" data-field="m2g_6f" data-delta="-1" class="adj-btn w-7 h-8 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 font-black text-sm">-</button>
-                                    <input type="number" id="input_m2g_6f" data-field="m2g_6f" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
-                                    <button type="button" data-field="m2g_6f" data-delta="1" class="adj-btn w-7 h-8 rounded-lg bg-purple-50 border border-purple-200 text-purple-700 font-black text-sm">+</button>
-                                </div>
-                            </div>
-                            <div class="bg-white border border-slate-200/90 rounded-xl p-2 text-center">
-                                <div class="text-xs font-extrabold text-slate-700 mb-1.5">7층</div>
-                                <div class="flex items-center justify-between gap-1">
-                                    <button type="button" data-field="m2g_7f" data-delta="-1" class="adj-btn w-7 h-8 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 font-black text-sm">-</button>
-                                    <input type="number" id="input_m2g_7f" data-field="m2g_7f" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
-                                    <button type="button" data-field="m2g_7f" data-delta="1" class="adj-btn w-7 h-8 rounded-lg bg-purple-50 border border-purple-200 text-purple-700 font-black text-sm">+</button>
-                                </div>
-                            </div>
-                            <div class="bg-white border border-slate-200/90 rounded-xl p-2 text-center">
-                                <div class="text-xs font-extrabold text-slate-700 mb-1.5">8층</div>
-                                <div class="flex items-center justify-between gap-1">
-                                    <button type="button" data-field="m2g_8f" data-delta="-1" class="adj-btn w-7 h-8 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 font-black text-sm">-</button>
-                                    <input type="number" id="input_m2g_8f" data-field="m2g_8f" value="0" min="0" class="num-input w-full text-center font-black text-base text-slate-900 bg-transparent focus:outline-none">
-                                    <button type="button" data-field="m2g_8f" data-delta="1" class="adj-btn w-7 h-8 rounded-lg bg-purple-50 border border-purple-200 text-purple-700 font-black text-sm">+</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- 그라운드 잔여 -->
-                    <div class="bg-purple-50/70 border border-purple-200/80 rounded-2xl px-3.5 py-2.5 flex items-center justify-between">
+            </div>
+            <div class="p-3 space-y-3">
+                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-2.5">
+                    <div class="flex justify-between items-center">
                         <div>
-                            <div class="text-sm font-extrabold text-slate-800">그라운드 잔여</div>
-                            <div class="text-[11px] font-bold text-purple-700 mt-0.5">
-                                메쟈닌→그라운드(<span id="formulaM2G">0</span>) - 6·7·8층(<span id="formulaFloors">0</span>)
+                            <div class="text-xs font-bold text-purple-950">메자닌 → 그라운드</div>
+                            <div class="text-[10px] text-purple-900 font-bold">아래 6·7·8층 입력 개수가 자동 차감됩니다</div>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <button onclick="updateVal('tote_mg', -1)" class="w-7 h-7 rounded bg-white border border-slate-300 text-purple-900 font-bold text-sm shadow-sm flex items-center justify-center">-</button>
+                            <input type="number" id="tote_mg" value="0" oninput="calculate()" class="w-8 text-center bg-transparent text-purple-950 font-bold text-sm focus:outline-none">
+                            <button onclick="updateVal('tote_mg', 1)" class="w-7 h-7 rounded bg-white border border-slate-300 text-purple-900 font-bold text-sm shadow-sm flex items-center justify-center">+</button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2 pt-1 border-t border-slate-200/60">
+                        <div class="bg-white p-2 rounded-lg border border-slate-200 text-center">
+                            <div class="text-[10px] text-purple-950 mb-1 font-bold">6층</div>
+                            <div class="flex items-center justify-center gap-1">
+                                <button onclick="updateVal('tote_6f', -1)" class="w-6 h-6 rounded bg-slate-50 border border-slate-200 text-purple-900 font-bold text-xs flex items-center justify-center">-</button>
+                                <input type="number" id="tote_6f" value="0" oninput="calculate()" class="w-7 text-center bg-transparent text-purple-950 font-bold text-xs focus:outline-none">
+                                <button onclick="updateVal('tote_6f', 1)" class="w-6 h-6 rounded bg-slate-50 border border-slate-200 text-purple-900 font-bold text-xs flex items-center justify-center">+</button>
                             </div>
                         </div>
-                        <div class="bg-white border border-purple-200 text-purple-700 font-black text-base px-4 py-1.5 rounded-xl">
-                            <span id="calcGroundRemDisplay">0</span>
+                        <div class="bg-white p-2 rounded-lg border border-slate-200 text-center">
+                            <div class="text-[10px] text-purple-950 mb-1 font-bold">7층</div>
+                            <div class="flex items-center justify-center gap-1">
+                                <button onclick="updateVal('tote_7f', -1)" class="w-6 h-6 rounded bg-slate-50 border border-slate-200 text-purple-900 font-bold text-xs flex items-center justify-center">-</button>
+                                <input type="number" id="tote_7f" value="0" oninput="calculate()" class="w-7 text-center bg-transparent text-purple-950 font-bold text-xs focus:outline-none">
+                                <button onclick="updateVal('tote_7f', 1)" class="w-6 h-6 rounded bg-slate-50 border border-slate-200 text-purple-900 font-bold text-xs flex items-center justify-center">+</button>
+                            </div>
+                        </div>
+                        <div class="bg-white p-2 rounded-lg border border-slate-200 text-center">
+                            <div class="text-[10px] text-purple-950 mb-1 font-bold">8층</div>
+                            <div class="flex items-center justify-center gap-1">
+                                <button onclick="updateVal('tote_8f', -1)" class="w-6 h-6 rounded bg-slate-50 border border-slate-200 text-purple-900 font-bold text-xs flex items-center justify-center">-</button>
+                                <input type="number" id="tote_8f" value="0" oninput="calculate()" class="w-7 text-center bg-transparent text-purple-950 font-bold text-xs focus:outline-none">
+                                <button onclick="updateVal('tote_8f', 1)" class="w-6 h-6 rounded bg-slate-50 border border-slate-200 text-purple-900 font-bold text-xs flex items-center justify-center">+</button>
+                            </div>
                         </div>
                     </div>
+                </div>
 
-                    <!-- 메쟈닌 잔여 -->
-                    <div class="bg-slate-50/80 border border-slate-200/80 rounded-2xl px-3.5 py-2.5 flex items-center justify-between">
-                        <div class="text-sm font-extrabold text-slate-800">메쟈닌 잔여</div>
-                        <div class="flex items-center gap-1.5">
-                            <button type="button" data-field="rem_mezzanine" data-delta="-1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-slate-600 font-black text-base active:bg-slate-100">-</button>
-                            <input type="number" id="input_rem_mezzanine" data-field="rem_mezzanine" value="0" min="0" class="num-input w-12 h-9 text-center font-black text-base text-slate-900 bg-white border border-slate-200 rounded-xl focus:outline-none">
-                            <button type="button" data-field="rem_mezzanine" data-delta="1" class="adj-btn w-8 h-9 rounded-xl bg-white border border-slate-200 text-purple-600 font-black text-base active:bg-purple-50">+</button>
-                        </div>
+                <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex items-center justify-between">
+                    <div>
+                        <div class="text-xs font-bold text-purple-950">그라운드 잔여</div>
+                        <div id="ground-formula" class="text-[10px] text-purple-900 font-bold">메자닌→그라운드(0) - 6·7·8층(0)</div>
                     </div>
+                    <div id="ground-rem-display" class="text-sm font-bold text-purple-950 px-3 py-1 bg-white border border-slate-200 rounded-lg min-w-[40px] text-center">0</div>
                 </div>
-            </section>
 
-            <!-- 6. 작업자 / 비고란 -->
-            <section class="bg-white rounded-2xl overflow-hidden border border-slate-200/70 card-shadow">
-                <div class="bg-slate-100 px-4 py-2.5 flex items-center justify-between">
-                    <h2 class="text-sm font-extrabold text-slate-800">6. 작업자 / 비고란</h2>
-                    <span class="text-[11px] font-bold text-slate-500">숫자+plt 입력 시 기타 자동 합산</span>
-                </div>
-                <div class="p-3">
-                    <textarea id="input_remark" rows="2" placeholder="예: 홍길동 / 잔여 파렛트 정리 3plt (입력 후 저장 버튼을 누르면 전체표에 공유됩니다)" class="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:bg-white transition resize-none select-text"></textarea>
-                </div>
-            </section>
-        </div>
-
-        <!-- 7. 전체 실적 집계표 (A조~I조) -->
-        <section class="bg-white rounded-2xl overflow-hidden border border-slate-200/80 card-shadow mt-3">
-            <div class="bg-[#1E1B4B] text-white px-4 py-3 flex items-center justify-between">
-                <div>
+                <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 flex items-center justify-between">
+                    <div class="text-xs font-bold text-purple-950">메자닌 잔여</div>
                     <div class="flex items-center gap-1.5">
-                        <span class="text-sm">🏆</span>
-                        <h2 class="text-sm font-extrabold">전체 실적 집계표 (A조~I조)</h2>
-                    </div>
-                    <div class="text-[11px] text-indigo-200 font-semibold mt-0.5">
-                        <span id="aggHeaderDate">2026-11-17 (화)</span> · 총 <span id="aggHeaderTotalPlt">0</span> PLT
+                        <button onclick="updateVal('mez_rem', -1)" class="w-7 h-7 rounded bg-white border border-slate-300 text-purple-900 font-bold text-sm shadow-sm flex items-center justify-center">-</button>
+                        <input type="number" id="mez_rem" value="0" oninput="calculate()" class="w-8 text-center bg-transparent text-purple-950 font-bold text-sm focus:outline-none">
+                        <button onclick="updateVal('mez_rem', 1)" class="w-7 h-7 rounded bg-white border border-slate-300 text-purple-900 font-bold text-sm shadow-sm flex items-center justify-center">+</button>
                     </div>
                 </div>
-                <button type="button" id="refreshTableBtn" class="bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-bold px-2.5 py-1.5 rounded-xl flex items-center gap-1 shadow transition">
-                    <span>🔄</span>
-                    <span>새로고침</span>
-                </button>
             </div>
+        </div>
 
+        <!-- 6. 작업자 / 비고란 -->
+        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+            <div class="bg-slate-300/80 border-b border-slate-300 px-3 py-2.5 flex justify-between items-center">
+                <h3 class="text-xs font-bold text-slate-950">6. 작업자 / 비고란</h3>
+                <span class="text-[11px] text-slate-900 font-bold">숫자+plt 입력 시 기타 자동 합산</span>
+            </div>
             <div class="p-3">
-                <div class="overflow-x-auto border border-slate-200 rounded-xl">
-                    <table class="w-full text-center border-collapse text-xs">
-                        <thead>
-                            <tr class="bg-slate-50 text-slate-600 font-extrabold border-b border-slate-200">
-                                <th class="py-2 px-2">구분(조)</th>
-                                <th class="py-2 px-2">BOX</th>
-                                <th class="py-2 px-2">PB</th>
-                                <th class="py-2 px-2">기타</th>
-                                <th class="py-2 px-2 text-slate-900">합계</th>
-                            </tr>
-                        </thead>
-                        <tbody id="aggregateTableBody" class="divide-y divide-slate-100 font-semibold text-slate-700">
-                        </tbody>
-                        <tfoot>
-                            <tr class="bg-indigo-50/80 font-black text-slate-900 border-t border-indigo-200">
-                                <td class="py-2.5 px-2 text-indigo-900">총합계</td>
-                                <td id="aggTotalBox" class="py-2.5 px-2">0</td>
-                                <td id="aggTotalPb" class="py-2.5 px-2">0</td>
-                                <td id="aggTotalEtc" class="py-2.5 px-2 text-amber-600">0</td>
-                                <td id="aggTotalPlt" class="py-2.5 px-2 text-indigo-700">0</td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-
-                <!-- 조별 비고 내역 -->
-                <div id="aggRemarksBox" class="mt-2.5 bg-slate-50 rounded-xl p-2.5 border border-slate-200/70 hidden">
-                    <div class="text-[11px] font-extrabold text-slate-600 mb-1">📝 조별 작업자 / 비고 내역</div>
-                    <div id="aggRemarksList" class="text-[11px] text-slate-700 space-y-0.5"></div>
-                </div>
+                <input type="text" id="memo" placeholder="예: 16센타 21plt 이관 (공토트 100plt는 미포함)" oninput="calculate()" class="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-900 font-medium focus:outline-none focus:border-blue-500">
             </div>
-        </section>
+        </div>
 
-        <!-- 8. 공유 메시지 미리보기 카드 -->
-        <section class="bg-white rounded-2xl p-3.5 border border-slate-200/80 card-shadow mt-3">
-            <div class="flex items-center justify-between mb-2.5">
-                <div class="flex items-center gap-1.5">
-                    <span class="text-sm">📋</span>
-                    <h2 class="text-sm font-extrabold text-slate-800">공유 메시지 미리보기</h2>
-                </div>
-                <button type="button" id="copyReportBtn" class="bg-blue-50 hover:bg-blue-100 active:scale-95 text-blue-600 text-xs font-extrabold px-3 py-1.5 rounded-xl transition">
-                    실적 복사
-                </button>
+        <!-- 전체 집계표 타이틀 -->
+        <div class="bg-[#1e1b4b] text-white p-3 rounded-xl shadow-sm flex justify-between items-center">
+            <span class="text-xs font-bold" id="table-title">🏆 오후조 전체 물류 이동 집계표 (A조 ~ I조)</span>
+            <button onclick="calculate()" class="bg-slate-700 hover:bg-slate-600 text-white text-[11px] px-2 py-1 rounded">새로고침</button>
+        </div>
+
+        <!-- 1. 이동 구분별 합계 표 -->
+        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+            <div class="bg-slate-100 px-3 py-2 border-b border-slate-200">
+                <h3 class="text-xs font-bold text-slate-800">■ 오후조 이동 구분별 합계</h3>
             </div>
-            <pre id="sharePreviewBox" class="bg-slate-50 border border-slate-200/80 rounded-xl p-3 text-xs text-slate-700 font-sans whitespace-pre-wrap leading-relaxed select-text"></pre>
-        </section>
+            <div class="overflow-x-auto">
+                <table class="w-full text-center text-xs">
+                    <thead>
+                        <tr class="bg-slate-50 border-b border-slate-200 text-slate-600">
+                            <th class="py-2 px-2 text-left">이동 구분</th>
+                            <th class="py-2 px-1">BOX</th>
+                            <th class="py-2 px-1">PB</th>
+                            <th class="py-2 px-1">기타</th>
+                            <th class="py-2 px-1 font-bold">소계</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 text-slate-700 font-medium">
+                        <tr>
+                            <td class="py-2 px-2 text-left">그라운드→벌크</td>
+                            <td id="tbl-s1-box" class="py-2 px-1">0</td>
+                            <td id="tbl-s1-pb" class="py-2 px-1">0</td>
+                            <td id="tbl-s1-etc" class="py-2 px-1">0</td>
+                            <td id="tbl-s1-sum" class="py-2 px-1 font-bold">0</td>
+                        </tr>
+                        <tr>
+                            <td class="py-2 px-2 text-left">벌크→벌크</td>
+                            <td id="tbl-s2-box" class="py-2 px-1">0</td>
+                            <td id="tbl-s2-pb" class="py-2 px-1">0</td>
+                            <td id="tbl-s2-etc" class="py-2 px-1">0</td>
+                            <td id="tbl-s2-sum" class="py-2 px-1 font-bold">0</td>
+                        </tr>
+                        <tr>
+                            <td class="py-2 px-2 text-left">벌크→라인</td>
+                            <td id="tbl-s3-box" class="py-2 px-1">0</td>
+                            <td id="tbl-s3-pb" class="py-2 px-1">0</td>
+                            <td id="tbl-s3-etc" class="py-2 px-1">0</td>
+                            <td id="tbl-s3-sum" class="py-2 px-1 font-bold">0</td>
+                        </tr>
+                        <tr>
+                            <td class="py-2 px-2 text-left">CFC 이동</td>
+                            <td id="tbl-s4-box" class="py-2 px-1">0</td>
+                            <td id="tbl-s4-pb" class="py-2 px-1">0</td>
+                            <td id="tbl-s4-etc" class="py-2 px-1">0</td>
+                            <td id="tbl-s4-sum" class="py-2 px-1 font-bold">0</td>
+                        </tr>
+                        <tr class="bg-slate-50 font-bold border-t border-slate-200 text-slate-900">
+                            <td class="py-2 px-2 text-left">오후조 총합계</td>
+                            <td id="tbl-total-box" class="py-2 px-1">0</td>
+                            <td id="tbl-total-pb" class="py-2 px-1">0</td>
+                            <td id="tbl-total-etc" class="py-2 px-1">0</td>
+                            <td id="tbl-total-plt" class="py-2 px-1 text-blue-600">0</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
 
-    </div>
+        <!-- 2. 공토트 전체 현황 표 -->
+        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+            <div class="bg-slate-100 px-3 py-2 border-b border-slate-200">
+                <h3 class="text-xs font-bold text-slate-800">■ 오후조 공토트 전체 현황</h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-center text-xs">
+                    <thead>
+                        <tr class="bg-slate-50 border-b border-slate-200 text-slate-600">
+                            <th class="py-2 px-1">메자닌→그라운드</th>
+                            <th class="py-2 px-1">6층</th>
+                            <th class="py-2 px-1">7층</th>
+                            <th class="py-2 px-1">8층</th>
+                            <th class="py-2 px-1">그라운드 잔여</th>
+                            <th class="py-2 px-1">메자닌 잔여</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 text-slate-700 font-medium">
+                        <tr>
+                            <td id="tbl-tote-mg" class="py-2 px-1">0</td>
+                            <td id="tbl-tote-6" class="py-2 px-1">0</td>
+                            <td id="tbl-tote-7" class="py-2 px-1">0</td>
+                            <td id="tbl-tote-8" class="py-2 px-1">0</td>
+                            <td id="tbl-tote-g-rem" class="py-2 px-1 font-bold text-purple-700">0</td>
+                            <td id="tbl-tote-m-rem" class="py-2 px-1 font-bold text-purple-700">0</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
 
-    <!-- 초기화 확인 모달 -->
-    <div id="resetModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 hidden items-center justify-center p-4">
-        <div class="bg-white rounded-2xl max-w-xs w-full p-5 shadow-2xl text-center">
-            <div class="text-2xl mb-2">⚠️</div>
-            <h3 class="text-base font-black text-slate-900 mb-1"><span id="resetModalTeamName">D조</span> 입력값 초기화</h3>
-            <p class="text-xs text-slate-500 mb-4">현재 조의 입력 수량과 비고란이 모두 0으로 초기화됩니다.</p>
-            <div class="flex gap-2">
-                <button type="button" id="cancelResetBtn" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs py-2.5 rounded-xl">취소</button>
-                <button type="button" id="confirmResetBtn" class="flex-1 bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs py-2.5 rounded-xl">초기화</button>
+        <!-- 3. 조별 상세 표 -->
+        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+            <div class="bg-slate-100 px-3 py-2 border-b border-slate-200">
+                <h3 class="text-xs font-bold text-slate-800">■ 조별 물량 상세 (A조 ~ I조)</h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-center text-xs">
+                    <thead>
+                        <tr class="bg-slate-50 border-b border-slate-200 text-slate-600">
+                            <th class="py-2 px-2">조</th>
+                            <th class="py-2 px-1">BOX</th>
+                            <th class="py-2 px-1">PB</th>
+                            <th class="py-2 px-1">기타</th>
+                            <th class="py-2 px-1 font-bold">합계</th>
+                        </tr>
+                    </thead>
+                    <tbody id="team-table-body" class="divide-y divide-slate-100 text-slate-700 font-medium">
+                        <!-- 동적 생성 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 4. 전체 비고 내역 -->
+        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+            <div class="bg-slate-100 px-3 py-2 border-b border-slate-200 flex items-center gap-1.5">
+                <span class="text-xs font-bold text-slate-800">📝 오후조 전체 비고 내역</span>
+            </div>
+            <div id="memo-list-box" class="p-3 space-y-1 text-xs text-slate-600 font-mono">
+                <!-- 비고 내역 출력 -->
+            </div>
+        </div>
+
+        <!-- 5. 공유 메시지 미리보기 -->
+        <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+            <div class="bg-slate-100 px-3 py-2.5 border-b border-slate-200 flex justify-between items-center">
+                <span class="text-xs font-bold text-slate-700">📋 공유 메시지 미리보기</span>
+                <button onclick="copyMessage()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-2.5 py-1 rounded-lg font-medium transition">메시지 복사</button>
+            </div>
+            <div class="p-3 bg-slate-900 text-xs text-emerald-300 font-mono whitespace-pre-line leading-relaxed rounded-b-xl" id="share-preview">
+                <!-- 메시지 출력 영역 -->
             </div>
         </div>
     </div>
 
-    <!-- Firebase 및 UI 로직 스크립트 -->
-    <script type="module">
-        import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, doc, setDoc, deleteDoc, onSnapshot, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-
-        // 조 목록 (A조, C조, D조, F조, G조, I조)
-        const TEAMS = ['A조', 'C조', 'D조', 'F조', 'G조', 'I조'];
-        const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
-        const NUMERIC_FIELDS = [
-            'g2b_box', 'g2b_pb', 'g2b_etc',
-            'b2b_box', 'b2b_pb', 'b2b_etc',
-            'b2l_box', 'b2l_pb', 'b2l_etc',
-            'cfc_box', 'cfc_pb', 'cfc_etc',
-            'm2g_total', 'm2g_6f', 'm2g_7f', 'm2g_8f', 'rem_mezzanine'
-        ];
-        const COLLECTION_NAME = 'daily_logistics';
-
+    <script>
         let currentTeam = 'D조';
-        let isStickyPinned = true;
-        let isDirty = false;
-        let localDrafts = {};
-        let committedData = {};
-        let firebaseApp = null;
-        let db = null;
-        let unsubscribeSnapshot = null;
+        let isFixed = true; // 기본값 고정 활성화
+        let currentDate = new Date();
+        const teams = ['A조', 'C조', 'D조', 'F조', 'G조', 'I조'];
+        let db = {};
 
-        // KST(한국 표준시) 기준 오늘 날짜 YYYY-MM-DD 반환
-        function getTodayKST() {
-            const now = new Date();
-            const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-            const kst = new Date(utc + (9 * 3600000));
-            return kst.toISOString().split('T')[0];
-        }
-        let currentDate = getTodayKST();
-
-        // KST 기준 오늘로부터 N일 전 날짜 문자열(YYYY-MM-DD) 반환
-        function getDateOffsetKST(daysOffset) {
-            const now = new Date();
-            const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-            const kst = new Date(utc + (9 * 3600000));
-            kst.setDate(kst.getDate() + daysOffset);
-            return kst.toISOString().split('T')[0];
+        function initDB() {
+            teams.forEach(t => {
+                db[t] = getEmptyData();
+            });
         }
 
-        function createEmptyRecord() {
+        function getEmptyData() {
             return {
-                g2b_box: 0, g2b_pb: 0, g2b_etc: 0,
-                b2b_box: 0, b2b_pb: 0, b2b_etc: 0,
-                b2l_box: 0, b2l_pb: 0, b2l_etc: 0,
-                cfc_box: 0, cfc_pb: 0, cfc_etc: 0,
-                m2g_total: 0,
-                m2g_6f: 0, m2g_7f: 0, m2g_8f: 0,
-                rem_mezzanine: 0,
-                remark: '',
-                updatedAt: null
+                sec1_box: 0, sec1_pb: 0, sec1_etc: 0,
+                sec2_box: 0, sec2_pb: 0, sec2_etc: 0,
+                sec3_box: 0, sec3_pb: 0, sec3_etc: 0,
+                sec4_box: 0, sec4_pb: 0, sec4_etc: 0,
+                tote_mg: 0, tote_6f: 0, tote_7f: 0, tote_8f: 0,
+                mez_rem: 0, memo: ''
             };
         }
 
-        function getDocKey(date = currentDate, team = currentTeam) {
-            return `${date}_${team}`;
-        }
-
-        function getActiveRecord() {
-            const key = getDocKey();
-            if (!localDrafts[key]) {
-                localDrafts[key] = committedData[key]
-                    ? JSON.parse(JSON.stringify(committedData[key]))
-                    : createEmptyRecord();
+        function selectTeam(team) {
+            saveTeamData();
+            currentTeam = team;
+            
+            // F조만 기본 고정 비활성화, 나머지는 고정 활성화
+            if (team === 'F조') {
+                isFixed = false;
+            } else {
+                isFixed = true;
             }
-            return localDrafts[key];
+            updateFixedBtnUI();
+
+            document.querySelectorAll('.team-btn').forEach(btn => {
+                btn.className = "team-btn px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition bg-slate-800 text-slate-300 border border-slate-700";
+            });
+            const activeBtn = document.getElementById(`btn-${team}`);
+            if (activeBtn) {
+                activeBtn.className = "team-btn px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition bg-blue-600 text-white border border-blue-500 shadow-md";
+            }
+            loadTeamData();
+            calculate();
         }
 
-        function parseRemarkPlt(remarkText) {
-            if (!remarkText) return 0;
-            const regex = /(\d+)\s*plt/gi;
-            let match;
+        function toggleFixed() {
+            isFixed = !isFixed;
+            updateFixedBtnUI();
+        }
+
+        function updateFixedBtnUI() {
+            const fixedBtn = document.getElementById('btn-fixed');
+            const headerContainer = document.getElementById('top-header-container');
+
+            if (isFixed) {
+                fixedBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition bg-purple-600 text-white border border-purple-500 shadow-md";
+                headerContainer.className = "sticky top-0 z-50 bg-[#0f172a] text-slate-100 border-b border-slate-800 px-4 pt-4 pb-3 shadow-lg";
+            } else {
+                fixedBtn.className = "px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition bg-slate-800 text-slate-300 border border-slate-700";
+                headerContainer.className = "relative z-50 bg-[#0f172a] text-slate-100 border-b border-slate-800 px-4 pt-4 pb-3 shadow-lg";
+            }
+        }
+
+        function updateVal(id, delta) {
+            const el = document.getElementById(id);
+            let val = parseInt(el.value || 0) + delta;
+            if (val < 0) val = 0;
+            el.value = val;
+            calculate();
+        }
+
+        function resetToteData() {
+            if (confirm("공토트 현황 데이터를 모든 조 공통으로 초기화하시겠습니까?")) {
+                teams.forEach(t => {
+                    if (db[t]) {
+                        db[t].tote_mg = 0;
+                        db[t].tote_6f = 0;
+                        db[t].tote_7f = 0;
+                        db[t].tote_8f = 0;
+                        db[t].mez_rem = 0;
+                    }
+                });
+                loadTeamData();
+                calculate();
+            }
+        }
+
+        function changeDate(days) {
+            currentDate.setDate(currentDate.getDate() + days);
+            updateDateDisplay();
+        }
+
+        function setToday() {
+            currentDate = new Date();
+            updateDateDisplay();
+        }
+
+        function updateDateDisplay() {
+            const days = ['(일)', '(월)', '(화)', '(수)', '(목)', '(금)', '(토)'];
+            const y = currentDate.getFullYear();
+            const m = String(currentDate.getMonth() + 1).padStart(2, '0');
+            const d = String(currentDate.getDate()).padStart(2, '0');
+            const dayStr = days[currentDate.getDay()];
+            document.getElementById('date-display').innerText = `${y}. ${m}. ${d}. ${dayStr}`;
+            return `${y}-${m}-${d} ${dayStr}`;
+        }
+
+        function loadTeamData() {
+            if (!db[currentTeam]) db[currentTeam] = getEmptyData();
+            const data = db[currentTeam];
+            for (let key in data) {
+                const el = document.getElementById(key);
+                if (el) el.value = data[key];
+            }
+        }
+
+        function saveTeamData() {
+            if (!db[currentTeam]) db[currentTeam] = getEmptyData();
+            const data = db[currentTeam];
+            for (let key in data) {
+                const el = document.getElementById(key);
+                if (el) data[key] = el.type === 'number' ? parseInt(el.value || 0) : el.value;
+            }
+        }
+
+        function saveData() {
+            saveTeamData();
+            alert(`${currentTeam} 데이터가 저장되었습니다.`);
+            calculate();
+        }
+
+        function resetData() {
+            if (confirm("모든 데이터를 초기화하시겠습니까?")) {
+                initDB();
+                loadTeamData();
+                calculate();
+            }
+        }
+
+        function parseMemoPlt(memoText) {
+            if (!memoText) return 0;
             let sum = 0;
-            while ((match = regex.exec(remarkText)) !== null) {
-                sum += parseInt(match[1], 10) || 0;
+            const regex = /([가-힣a-zA-Z0-9\s]+?)\s*(\d+)\s*plt/gi;
+            let match;
+            
+            const excludeKeywords = ['공토트', '토트', '빠레트', '빠렛', '빠랫', '빠랫트', '빠래트'];
+
+            while ((match = regex.exec(memoText)) !== null) {
+                let prefixText = match[1];
+                let numVal = parseInt(match[2]);
+
+                let isExcluded = false;
+                for (let kw of excludeKeywords) {
+                    if (prefixText.includes(kw)) {
+                        isExcluded = true;
+                        break;
+                    }
+                }
+
+                if (!isExcluded) {
+                    sum += numVal;
+                }
             }
             return sum;
         }
 
-        // 공유 메시지용 비고 정제: '공토트'로 시작하는 '숫자+plt' 항목(줄/구문) 제외
-        function filterRemarkForShareMessage(remarkText) {
-            if (!remarkText || !remarkText.trim()) return '';
-            const lines = remarkText.split(/\r?\n/);
-            const filteredLines = lines.map(line => {
-                // 한 줄에 슬래시(/)나 쉼표(,)로 구분된 항목이 있을 경우도 개별 필터링 처리
-                const parts = line.split(/(\s*\/\s*|\s*,\s*)/);
-                let resultParts = [];
-                for (let i = 0; i < parts.length; i += 2) {
-                    const item = (parts[i] || '').trim();
-                    if (!item) continue;
-                    // '공토트'로 시작하고 숫자+plt가 이어지는 경우 제외
-                    if (/^공토트\s*\d+\s*plt/i.test(item)) {
-                        continue;
-                    }
-                    resultParts.push(item);
-                }
-                return resultParts.join(' / ');
-            }).filter(line => line.trim() !== '');
+        function calculate() {
+            saveTeamData();
 
-            return filteredLines.join('\n').trim();
-        }
+            let s1Box = parseInt(document.getElementById('sec1_box').value) || 0;
+            let s1Pb = parseInt(document.getElementById('sec1_pb').value) || 0;
+            let s1Etc = parseInt(document.getElementById('sec1_etc').value) || 0;
+            let sub1 = s1Box + s1Pb + s1Etc;
 
-        function escapeHtml(str) {
-            return str.replace(/[&<>"']/g, m => ({
-                '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-            }[m]));
-        }
+            let s2Box = parseInt(document.getElementById('sec2_box').value) || 0;
+            let s2Pb = parseInt(document.getElementById('sec2_pb').value) || 0;
+            let s2Etc = parseInt(document.getElementById('sec2_etc').value) || 0;
+            let sub2 = s2Box + s2Pb + s2Etc;
 
-        let toastTimer = null;
-        function showToast(message, icon = '✅') {
-            const toast = document.getElementById('toast');
-            document.getElementById('toastText').textContent = message;
-            document.getElementById('toastIcon').textContent = icon;
-            toast.classList.remove('opacity-0', '-translate-y-2');
-            toast.classList.add('opacity-100', 'translate-y-0');
-            clearTimeout(toastTimer);
-            toastTimer = setTimeout(() => {
-                toast.classList.remove('opacity-100', 'translate-y-0');
-                toast.classList.add('opacity-0', '-translate-y-2');
-            }, 2600);
-        }
+            let s3Box = parseInt(document.getElementById('sec3_box').value) || 0;
+            let s3Pb = parseInt(document.getElementById('sec3_pb').value) || 0;
+            let s3Etc = parseInt(document.getElementById('sec3_etc').value) || 0;
+            let sub3 = s3Box + s3Pb + s3Etc;
 
-        function setConnectionStatus(status, message) {
-            const badge = document.getElementById('onlineStatusBadge');
-            const dot = document.getElementById('onlineDot');
-            const text = document.getElementById('onlineText');
+            let s4Box = parseInt(document.getElementById('sec4_box').value) || 0;
+            let s4Pb = parseInt(document.getElementById('sec4_pb').value) || 0;
+            let s4Etc = parseInt(document.getElementById('sec4_etc').value) || 0;
+            let sub4 = s4Box + s4Pb + s4Etc;
 
-            if (status === 'connected') {
-                badge.className = "flex items-center gap-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] sm:text-[11px] font-bold px-2.5 py-1.5 rounded-full transition";
-                dot.className = "w-2 h-2 rounded-full bg-emerald-500 animate-pulse";
-                text.textContent = message || '온라인 실시간 동기화';
-            } else {
-                badge.className = "flex items-center gap-1.5 bg-amber-50 border border-amber-200 text-amber-700 text-[10px] sm:text-[11px] font-bold px-2.5 py-1.5 rounded-full transition";
-                dot.className = "w-2 h-2 rounded-full bg-amber-500 animate-pulse";
-                text.textContent = message || '서버 연결 중...';
-            }
-        }
+            let memoInputVal = document.getElementById('memo').value;
+            let memoParsedEtc = parseMemoPlt(memoInputVal);
+            s1Etc += memoParsedEtc;
+            sub1 += memoParsedEtc;
 
-        function formatDateLabels() {
-            const parts = currentDate.split('-');
-            if (parts.length !== 3) return;
-            const y = parseInt(parts[0], 10);
-            const m = parseInt(parts[1], 10);
-            const d = parseInt(parts[2], 10);
-            const dt = new Date(y, m - 1, d);
-            const dayName = WEEKDAYS[dt.getDay()];
+            document.getElementById('subtotal-1').innerText = `소계 ${sub1}`;
+            document.getElementById('subtotal-2').innerText = `소계 ${sub2}`;
+            document.getElementById('subtotal-3').innerText = `소계 ${sub3}`;
+            document.getElementById('subtotal-4').innerText = `소계 ${sub4}`;
 
-            document.getElementById('formattedDateDisplay').textContent = `${y}. ${String(m).padStart(2, '0')}. ${String(d).padStart(2, '0')}.`;
-            document.getElementById('formattedDayDisplay').textContent = `(${dayName})`;
-            document.getElementById('hiddenDateInput').value = currentDate;
-            document.getElementById('aggHeaderDate').textContent = `${currentDate} (${dayName})`;
-        }
+            let totalBox = s1Box + s2Box + s3Box + s4Box;
+            let totalPb = s1Pb + s2Pb + s3Pb + s4Pb;
+            let totalEtc = s1Etc + s2Etc + s3Etc + s4Etc;
+            let totalPlt = sub1 + sub2 + sub3 + sub4;
 
-        function renderTeamButtons() {
-            const buttons = document.querySelectorAll('#teamButtonsContainer .team-btn');
-            buttons.forEach(btn => {
-                const team = btn.getAttribute('data-team');
-                if (team === currentTeam) {
-                    btn.className = "team-btn shrink-0 px-3.5 py-1.5 rounded-full text-xs font-extrabold border transition active:scale-95 bg-blue-600 text-white border-blue-600 shadow-sm";
-                } else {
-                    btn.className = "team-btn shrink-0 px-3.5 py-1.5 rounded-full text-xs font-extrabold border transition active:scale-95 bg-white text-slate-700 border-slate-200 hover:bg-slate-50";
-                }
-            });
-        }
+            document.getElementById('dashboard-title').innerText = `${currentTeam} 입력 합계 총 ${totalPlt} PLT`;
+            document.getElementById('dash-box').innerText = totalBox;
+            document.getElementById('dash-pb').innerText = totalPb;
+            document.getElementById('dash-etc').innerText = totalEtc;
+            document.getElementById('dash-total').innerText = `${totalPlt} PLT`;
 
-        function computeTotals(rec) {
-            const remarkPlt = parseRemarkPlt(rec.remark);
-            const box = (Number(rec.g2b_box) || 0) + (Number(rec.b2b_box) || 0) + (Number(rec.b2l_box) || 0) + (Number(rec.cfc_box) || 0);
-            const pb = (Number(rec.g2b_pb) || 0) + (Number(rec.b2b_pb) || 0) + (Number(rec.b2l_pb) || 0) + (Number(rec.cfc_pb) || 0);
-            const etc = (Number(rec.g2b_etc) || 0) + (Number(rec.b2b_etc) || 0) + (Number(rec.b2l_etc) || 0) + (Number(rec.cfc_etc) || 0) + remarkPlt;
-            const total = box + pb + etc;
-            const m2gTotal = Number(rec.m2g_total) || 0;
-            const floorSum = (Number(rec.m2g_6f) || 0) + (Number(rec.m2g_7f) || 0) + (Number(rec.m2g_8f) || 0);
-            const groundRem = m2gTotal - floorSum;
-            return { box, pb, etc, total, groundRem, m2gTotal, floorSum };
-        }
+            let tMg = parseInt(document.getElementById('tote_mg').value) || 0;
+            let t6 = parseInt(document.getElementById('tote_6f').value) || 0;
+            let t7 = parseInt(document.getElementById('tote_7f').value) || 0;
+            let t8 = parseInt(document.getElementById('tote_8f').value) || 0;
+            let sumF = t6 + t7 + t8;
+            let groundRem = tMg - sumF;
+            if (groundRem < 0) groundRem = 0;
+            let mezRem = parseInt(document.getElementById('mez_rem').value) || 0;
 
-        function syncFormAndSummaryUI() {
-            const rec = getActiveRecord();
+            document.getElementById('tote-subtotal').innerText = `층별 차감 합계 -${sumF}`;
+            document.getElementById('ground-formula').innerText = `메자닌→그라운드(${tMg}) - 6·7·8층(${sumF})`;
+            document.getElementById('ground-rem-display').innerText = groundRem;
 
-            NUMERIC_FIELDS.forEach(field => {
-                const el = document.getElementById(`input_${field}`);
-                if (el) {
-                    el.value = Number(rec[field]) || 0;
-                }
-            });
+            let totS1Box=0, totS1Pb=0, totS1Etc=0, totS1Sum=0;
+            let totS2Box=0, totS2Pb=0, totS2Etc=0, totS2Sum=0;
+            let totS3Box=0, totS3Pb=0, totS3Etc=0, totS3Sum=0;
+            let totS4Box=0, totS4Pb=0, totS4Etc=0, totS4Sum=0;
+            
+            let allBox=0, allPb=0, allEtc=0, allPlt=0;
+            let teamTableHtml = '';
+            let memoHtml = '';
+            let memoMsg = '';
 
-            const remarkEl = document.getElementById('input_remark');
-            if (remarkEl && document.activeElement !== remarkEl && remarkEl.value !== (rec.remark || '')) {
-                remarkEl.value = rec.remark || '';
-            }
+            teams.forEach(t => {
+                let d = db[t];
+                let mExtra = parseMemoPlt(d.memo);
 
-            const subG2B = (Number(rec.g2b_box) || 0) + (Number(rec.g2b_pb) || 0) + (Number(rec.g2b_etc) || 0);
-            const subB2B = (Number(rec.b2b_box) || 0) + (Number(rec.b2b_pb) || 0) + (Number(rec.b2b_etc) || 0);
-            const subB2L = (Number(rec.b2l_box) || 0) + (Number(rec.b2l_pb) || 0) + (Number(rec.b2l_etc) || 0);
-            const subCFC = (Number(rec.cfc_box) || 0) + (Number(rec.cfc_pb) || 0) + (Number(rec.cfc_etc) || 0);
+                let t_s1_box = d.sec1_box;
+                let t_s1_pb = d.sec1_pb;
+                let t_s1_etc = d.sec1_etc + (t === currentTeam ? memoParsedEtc : (d === db[t] ? mExtra : 0));
+                let t_s1_sum = t_s1_box + t_s1_pb + t_s1_etc;
 
-            document.getElementById('sub_g2b').textContent = subG2B;
-            document.getElementById('sub_b2b').textContent = subB2B;
-            document.getElementById('sub_b2l').textContent = subB2L;
-            document.getElementById('sub_cfc').textContent = subCFC;
+                let t_s2_sum = d.sec2_box + d.sec2_pb + d.sec2_etc;
+                let t_s3_sum = d.sec3_box + d.sec3_pb + d.sec3_etc;
+                let t_s4_sum = d.sec4_box + d.sec4_pb + d.sec4_etc;
 
-            const stats = computeTotals(rec);
-            const f6 = Number(rec.m2g_6f) || 0;
-            const f7 = Number(rec.m2g_7f) || 0;
-            const f8 = Number(rec.m2g_8f) || 0;
-            const remMezzanine = Number(rec.rem_mezzanine) || 0;
+                totS1Box += t_s1_box; totS1Pb += t_s1_pb; totS1Etc += t_s1_etc; totS1Sum += t_s1_sum;
+                totS2Box += d.sec2_box; totS2Pb += d.sec2_pb; totS2Etc += d.sec2_etc; totS2Sum += t_s2_sum;
+                totS3Box += d.sec3_box; totS3Pb += d.sec3_pb; totS3Etc += d.sec3_etc; totS3Sum += t_s3_sum;
+                totS4Box += d.sec4_box; totS4Pb += d.sec4_pb; totS4Etc += d.sec4_etc; totS4Sum += t_s4_sum;
 
-            document.getElementById('floorDeductSum').textContent = stats.floorSum;
-            document.getElementById('formulaM2G').textContent = stats.m2gTotal;
-            document.getElementById('formulaFloors').textContent = stats.floorSum;
-            document.getElementById('calcGroundRemDisplay').textContent = stats.groundRem;
+                let t_box = t_s1_box + d.sec2_box + d.sec3_box + d.sec4_box;
+                let t_pb = t_s1_pb + d.sec2_pb + d.sec3_pb + d.sec4_pb;
+                let t_etc = t_s1_etc + d.sec2_etc + d.sec3_etc + d.sec4_etc;
+                let t_total = t_box + t_pb + t_etc;
 
-            document.getElementById('summaryTeamLabel').textContent = `${currentTeam} 입력 합계`;
-            document.getElementById('totalPltCount').textContent = stats.total;
-            document.getElementById('sumBox').textContent = stats.box;
-            document.getElementById('sumPb').textContent = stats.pb;
-            document.getElementById('sumEtc').textContent = stats.etc;
-            document.getElementById('sumGroundRem').textContent = stats.groundRem;
+                allBox += t_box; allPb += t_pb; allEtc += t_etc; allPlt += t_total;
 
-            // 공유 메시지 포맷 생성
-            // 1. 상단 [날짜 X조 물량 이동 실적] 삭제
-            let previewText = `■ 그라운드 → 벌크 이동: ${subG2B}plt\n`;
-            previewText += `■ 벌크 → 벌크 이동: ${subB2B}plt\n`;
-            previewText += `■ 벌크 → 라인 이동: ${subB2L}plt\n`;
-            previewText += `■ CFC 이동: ${subCFC}plt\n`;
-            previewText += `▶ 합계: 총 ${stats.total}plt (BOX ${stats.box} / PB ${stats.pb} / 기타 ${stats.etc})`;
+                teamTableHtml += `<tr class="border-b border-slate-100">
+                    <td class="py-2 px-2 font-bold text-slate-800">${t}</td>
+                    <td class="py-2 px-1">${t_box}</td>
+                    <td class="py-2 px-1">${t_pb}</td>
+                    <td class="py-2 px-1">${t_etc}</td>
+                    <td class="py-2 px-1 font-bold">${t_total}</td>
+                </tr>`;
 
-            // 2. 합계 바로 밑에 몇 조인지 적지 않고 비고 내용만 기재 ('공토트+숫자+plt'로 시작하는 항목은 제외)
-            const cleanedRemark = filterRemarkForShareMessage(rec.remark);
-            if (cleanedRemark !== '') {
-                previewText += `\n${cleanedRemark}`;
-            }
-
-            previewText += `\n\n■ 공토트 현황\n`;
-            previewText += `- 메쟈닌→그라운드(${stats.m2gTotal}): 6층(${f6}) / 7층(${f7}) / 8층(${f8})\n`;
-            previewText += `- 그라운드 잔여: ${stats.groundRem} / 메쟈닌 잔여: ${remMezzanine}`;
-
-            document.getElementById('sharePreviewBox').textContent = previewText;
-        }
-
-        function renderAggregateTable() {
-            const tbody = document.getElementById('aggregateTableBody');
-            let grandBox = 0, grandPb = 0, grandEtc = 0, grandPlt = 0;
-            const remarkItems = [];
-
-            const rowsHtml = TEAMS.map(team => {
-                const key = getDocKey(currentDate, team);
-                const data = committedData[key] || createEmptyRecord();
-                const stats = computeTotals(data);
-
-                grandBox += stats.box;
-                grandPb += stats.pb;
-                grandEtc += stats.etc;
-                grandPlt += stats.total;
-
-                if (data.remark && data.remark.trim() !== '') {
-                    remarkItems.push(`<div><span class="font-extrabold text-slate-900">[${team}]</span> ${escapeHtml(data.remark.trim())}</div>`);
-                }
-
-                const isCurrent = team === currentTeam;
-                const rowBg = isCurrent ? 'bg-blue-50/70' : '';
-
-                return `
-                    <tr data-row-team="${team}" class="agg-team-row cursor-pointer hover:bg-slate-50 transition ${rowBg}">
-                        <td class="py-2.5 px-2 font-extrabold ${isCurrent ? 'text-blue-600' : 'text-slate-800'}">${team}</td>
-                        <td class="py-2.5 px-2">${stats.box}</td>
-                        <td class="py-2.5 px-2">${stats.pb}</td>
-                        <td class="py-2.5 px-2">${stats.etc}</td>
-                        <td class="py-2.5 px-2 font-black text-slate-900">${stats.total}</td>
-                    </tr>
-                `;
-            }).join('');
-
-            tbody.innerHTML = rowsHtml;
-            document.getElementById('aggTotalBox').textContent = grandBox;
-            document.getElementById('aggTotalPb').textContent = grandPb;
-            document.getElementById('aggTotalEtc').textContent = grandEtc;
-            document.getElementById('aggTotalPlt').textContent = grandPlt;
-            document.getElementById('aggHeaderTotalPlt').textContent = grandPlt;
-
-            document.querySelectorAll('.agg-team-row').forEach(row => {
-                row.addEventListener('click', () => {
-                    const t = row.getAttribute('data-row-team');
-                    if (t) selectTeam(t);
-                });
-            });
-
-            const remarksBox = document.getElementById('aggRemarksBox');
-            const remarksList = document.getElementById('aggRemarksList');
-            if (remarkItems.length > 0) {
-                remarksBox.classList.remove('hidden');
-                remarksList.innerHTML = remarkItems.join('');
-            } else {
-                remarksBox.classList.add('hidden');
-            }
-        }
-
-        function selectTeam(team) {
-            currentTeam = team;
-            isDirty = false;
-            const key = getDocKey();
-            if (committedData[key]) {
-                localDrafts[key] = JSON.parse(JSON.stringify(committedData[key]));
-            }
-            renderTeamButtons();
-            syncFormAndSummaryUI();
-            renderAggregateTable();
-            showToast(`${team} 화면으로 전환되었습니다.`, '👥');
-        }
-
-        function toggleStickyPin() {
-            isStickyPinned = !isStickyPinned;
-            const wrapper = document.getElementById('stickyWrapper');
-            const btn = document.getElementById('pinToggleBtn');
-            const text = document.getElementById('pinToggleText');
-
-            if (isStickyPinned) {
-                wrapper.classList.add('sticky', 'top-0');
-                btn.className = "shrink-0 bg-indigo-600 border border-indigo-600 text-white text-xs font-extrabold px-3.5 py-1.5 rounded-full shadow-sm active:scale-95 transition";
-                text.textContent = "고정";
-                showToast("상단 요약바가 화면에 고정되었습니다.", "📌");
-            } else {
-                wrapper.classList.remove('sticky', 'top-0');
-                btn.className = "shrink-0 bg-white border border-slate-300 text-slate-600 text-xs font-bold px-3.5 py-1.5 rounded-full active:scale-95 transition";
-                text.textContent = "고정";
-                showToast("상단 요약바 고정이 해제되었습니다.", "📍");
-            }
-        }
-
-        function handleDateChange(newDate) {
-            if (!newDate) return;
-            currentDate = newDate;
-            isDirty = false;
-            const key = getDocKey();
-            if (committedData[key]) {
-                localDrafts[key] = JSON.parse(JSON.stringify(committedData[key]));
-            }
-            formatDateLabels();
-            syncFormAndSummaryUI();
-            renderAggregateTable();
-        }
-
-        function shiftDate(days) {
-            const parts = currentDate.split('-');
-            const dt = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-            dt.setDate(dt.getDate() + days);
-            const offset = dt.getTimezoneOffset() * 60000;
-            const nextStr = new Date(dt.getTime() - offset).toISOString().split('T')[0];
-            handleDateChange(nextStr);
-        }
-
-        function copyShareReport() {
-            const textToCopy = document.getElementById('sharePreviewBox').textContent;
-            const textarea = document.createElement('textarea');
-            textarea.value = textToCopy;
-            textarea.style.position = 'fixed';
-            textarea.style.opacity = '0';
-            document.body.appendChild(textarea);
-            textarea.select();
-            try {
-                document.execCommand('copy');
-                showToast("공유 메시지가 복사되었습니다!", "📋");
-            } catch (e) {
-                showToast("복사에 실패했습니다.", "⚠️");
-            }
-            document.body.removeChild(textarea);
-        }
-
-        // 백그라운드 자동 정리 로직: 오늘 기준 3일 전보다 이전 날짜의 문서 삭제
-        async function purgeExpiredFirestoreDocs() {
-            if (!db) return;
-            try {
-                const cutoffDate = getDateOffsetKST(-3);
-                const colRef = collection(db, COLLECTION_NAME);
-                const snapshot = await getDocs(colRef);
-
-                const deleteTasks = [];
-                snapshot.forEach((docSnap) => {
-                    const docId = docSnap.id;
-                    const datePart = docId.split('_')[0];
-                    if (/^\d{4}-\d{2}-\d{2}$/.test(datePart) && datePart < cutoffDate) {
-                        deleteTasks.push(deleteDoc(doc(db, COLLECTION_NAME, docId)));
-                    }
-                });
-
-                if (deleteTasks.length > 0) {
-                    await Promise.all(deleteTasks);
-                }
-            } catch (err) {
-                console.error("Background cleanup error:", err);
-            }
-        }
-
-        // Firestore 실시간 리스너
-        function startRealtimeListener() {
-            if (!db) return;
-            if (unsubscribeSnapshot) unsubscribeSnapshot();
-
-            const colRef = collection(db, COLLECTION_NAME);
-            unsubscribeSnapshot = onSnapshot(colRef, (snapshot) => {
-                setConnectionStatus('connected', '온라인 실시간 동기화');
-                const freshCommitted = {};
-                snapshot.forEach((docSnap) => {
-                    const data = docSnap.data();
-                    freshCommitted[docSnap.id] = data;
-
-                    if (!isDirty && docSnap.id === getDocKey()) {
-                        localDrafts[docSnap.id] = JSON.parse(JSON.stringify(data));
-                    }
-                });
-                committedData = freshCommitted;
-                syncFormAndSummaryUI();
-                renderAggregateTable();
-            }, (error) => {
-                console.error("Firestore onSnapshot error:", error);
-                setConnectionStatus('error', 'DB 연결 오류');
-            });
-        }
-
-        async function refreshFromFirestore() {
-            if (!db) return;
-            try {
-                const colRef = collection(db, COLLECTION_NAME);
-                const snap = await getDocs(colRef);
-                setConnectionStatus('connected', '온라인 실시간 동기화');
-                const freshCommitted = {};
-                snap.forEach((docSnap) => {
-                    freshCommitted[docSnap.id] = docSnap.data();
-                    if (!isDirty && docSnap.id === getDocKey()) {
-                        localDrafts[docSnap.id] = JSON.parse(JSON.stringify(docSnap.data()));
-                    }
-                });
-                committedData = freshCommitted;
-                syncFormAndSummaryUI();
-                renderAggregateTable();
-                showToast("최신 팀 실적을 불러왔습니다!", "🔄");
-            } catch (err) {
-                console.error("Refresh error:", err);
-            }
-        }
-
-        async function saveCurrentTeamData() {
-            if (!db) {
-                showToast("Firebase 연결 대기중입니다.", "⚠️");
-                return;
-            }
-
-            const key = getDocKey();
-            const rec = getActiveRecord();
-            const nowTime = new Date().toTimeString().slice(0, 5);
-
-            const payload = {
-                ...rec,
-                date: currentDate,
-                team: currentTeam,
-                updatedAt: nowTime
-            };
-
-            try {
-                const docRef = doc(db, COLLECTION_NAME, key);
-                await setDoc(docRef, payload);
-                committedData[key] = JSON.parse(JSON.stringify(payload));
-                localDrafts[key] = JSON.parse(JSON.stringify(payload));
-                isDirty = false;
-                syncFormAndSummaryUI();
-                renderAggregateTable();
-                showToast(`저장 완료! (${key})`, '✅');
-            } catch (err) {
-                console.error("Firestore save error:", err);
-                showToast(`저장 실패: ${err.message}`, "⚠️");
-            }
-        }
-
-        async function resetCurrentTeamDataInDB() {
-            const key = getDocKey();
-            const emptyRec = createEmptyRecord();
-            localDrafts[key] = emptyRec;
-            isDirty = false;
-
-            if (db) {
-                try {
-                    const docRef = doc(db, COLLECTION_NAME, key);
-                    await setDoc(docRef, {
-                        ...emptyRec,
-                        date: currentDate,
-                        team: currentTeam,
-                        updatedAt: new Date().toTimeString().slice(0, 5)
-                    });
-                    committedData[key] = JSON.parse(JSON.stringify(emptyRec));
-                } catch (err) {
-                    console.error("Firestore reset error:", err);
-                }
-            }
-            syncFormAndSummaryUI();
-            renderAggregateTable();
-            showToast(`${currentTeam} 초기화 완료`, '🔄');
-        }
-
-        // 모든 조(A조~I조)의 공토트 입력 항목을 0으로 초기화 및 DB 반영
-        async function resetAllTeamsEmptyToteData() {
-            const emptyToteFields = ['m2g_total', 'm2g_6f', 'm2g_7f', 'm2g_8f', 'rem_mezzanine'];
-            const nowTime = new Date().toTimeString().slice(0, 5);
-            const saveTasks = [];
-
-            TEAMS.forEach(team => {
-                const key = getDocKey(currentDate, team);
-                const baseRec = localDrafts[key]
-                    ? JSON.parse(JSON.stringify(localDrafts[key]))
-                    : (committedData[key] ? JSON.parse(JSON.stringify(committedData[key])) : createEmptyRecord());
-
-                emptyToteFields.forEach(field => {
-                    baseRec[field] = 0;
-                });
-
-                localDrafts[key] = JSON.parse(JSON.stringify(baseRec));
-
-                if (db) {
-                    const payload = {
-                        ...baseRec,
-                        date: currentDate,
-                        team: team,
-                        updatedAt: nowTime
-                    };
-                    committedData[key] = JSON.parse(JSON.stringify(payload));
-                    const docRef = doc(db, COLLECTION_NAME, key);
-                    saveTasks.push(setDoc(docRef, payload));
+                if (d.memo && d.memo.trim() !== '') {
+                    memoHtml += `<div>• ${t}: ${d.memo}</div>`;
+                    let cleanMemo = d.memo.replace(/^[A-I]조\s*[:：]\s*/i, '').trim();
+                    memoMsg += `- ${cleanMemo}\n`;
                 }
             });
 
-            if (saveTasks.length > 0) {
-                try {
-                    await Promise.all(saveTasks);
-                } catch (err) {
-                    console.error("Empty tote reset DB error:", err);
-                    showToast("공토트 초기화 중 일부 DB 반영 오류가 발생했습니다.", "⚠️");
-                    return;
-                }
+            document.getElementById('tbl-s1-box').innerText = totS1Box;
+            document.getElementById('tbl-s1-pb').innerText = totS1Pb;
+            document.getElementById('tbl-s1-etc').innerText = totS1Etc;
+            document.getElementById('tbl-s1-sum').innerText = totS1Sum;
+
+            document.getElementById('tbl-s2-box').innerText = totS2Box;
+            document.getElementById('tbl-s2-pb').innerText = totS2Pb;
+            document.getElementById('tbl-s2-etc').innerText = totS2Etc;
+            document.getElementById('tbl-s2-sum').innerText = totS2Sum;
+
+            document.getElementById('tbl-s3-box').innerText = totS3Box;
+            document.getElementById('tbl-s3-pb').innerText = totS3Pb;
+            document.getElementById('tbl-s3-etc').innerText = totS3Etc;
+            document.getElementById('tbl-s3-sum').innerText = totS3Sum;
+
+            document.getElementById('tbl-s4-box').innerText = totS4Box;
+            document.getElementById('tbl-s4-pb').innerText = totS4Pb;
+            document.getElementById('tbl-s4-etc').innerText = totS4Etc;
+            document.getElementById('tbl-s4-sum').innerText = totS4Sum;
+
+            document.getElementById('tbl-total-box').innerText = allBox;
+            document.getElementById('tbl-total-pb').innerText = allPb;
+            document.getElementById('tbl-total-etc').innerText = allEtc;
+            document.getElementById('tbl-total-plt').innerText = allPlt;
+
+            const dateStrSimple = document.getElementById('date-display').innerText;
+            document.getElementById('table-title').innerText = `🏆 오후조 전체 물류 이동 집계표 (A조~I조)\n${dateStrSimple} · 총 ${allPlt} PLT`;
+
+            document.getElementById('tbl-tote-mg').innerText = tMg;
+            document.getElementById('tbl-tote-6').innerText = t6;
+            document.getElementById('tbl-tote-7').innerText = t7;
+            document.getElementById('tbl-tote-8').innerText = t8;
+            document.getElementById('tbl-tote-g-rem').innerText = groundRem;
+            document.getElementById('tbl-tote-m-rem').innerText = mezRem;
+
+            document.getElementById('team-table-body').innerHTML = teamTableHtml;
+            document.getElementById('memo-list-box').innerHTML = memoHtml || '<div class="text-slate-400">등록된 비고 내역이 없습니다.</div>';
+
+            // 공유 메시지 구성 (값이 0인 항목 제외 및 간략한 포맷 적용)
+            let msgLines = [];
+            if (totS1Sum > 0) msgLines.push(`■ 그라운드 → 벌크 이동: ${totS1Sum}plt`);
+            if (totS2Sum > 0) msgLines.push(`■ 벌크 → 벌크 이동: ${totS2Sum}plt`);
+            if (totS3Sum > 0) msgLines.push(`■ 벌크 → 라인 이동: ${totS3Sum}plt`);
+            if (totS4Sum > 0) msgLines.push(`■ CFC 이동: ${totS4Sum}plt`);
+
+            let msg = msgLines.join('\n') + `\n\n■ 공토트 현황\n`;
+
+            let floorParts = [];
+            if (t6 > 0) floorParts.push(`6층(${t6})`);
+            if (t7 > 0) floorParts.push(`7층(${t7})`);
+            if (t8 > 0) floorParts.push(`8층(${t8})`);
+
+            let floorStr = floorParts.length > 0 ? `: ${floorParts.join(' / ')}` : '';
+            msg += `- 메자닌→그라운드(${tMg})${floorStr}\n` +
+                   `- 그라운드 잔여: ${groundRem} / 메자닌 잔여: ${mezRem}`;
+
+            if (memoMsg) {
+                msg += `\n\n■ 전체 비고 내역\n\n` + memoMsg;
             }
 
-            syncFormAndSummaryUI();
-            renderAggregateTable();
-            showToast("전체 조 공토트 입력 내용이 초기화되었습니다.", "🧹");
+            document.getElementById('share-preview').innerText = msg;
         }
 
-        async function connectFirebase() {
-            const firebaseConfig = {
-                apiKey: "AIzaSyA1SwpNe8dIEmQKcNBdM57gAbk",
-                authDomain: "himagicdraw.firebaseapp.com",
-                projectId: "himagicdraw",
-                storageBucket: "himagicdraw.firebasestorage.app",
-                messagingSenderId: "271144041888",
-                appId: "1:271144041888:web:27d42211199a70b1d5b8c5",
-                measurementId: "G-9MNF7YV2YP"
-            };
-
-            try {
-                if (firebaseApp) {
-                    if (unsubscribeSnapshot) unsubscribeSnapshot();
-                    await deleteApp(firebaseApp);
-                }
-                firebaseApp = initializeApp(firebaseConfig, "hiDailyDirectApp_" + Date.now());
-                db = getFirestore(firebaseApp);
-
-                await purgeExpiredFirestoreDocs();
-                startRealtimeListener();
-            } catch (err) {
-                console.error("Firebase init error:", err);
-                setConnectionStatus('error', 'DB 초기화 오류');
-            }
-        }
-
-        function bindAllEvents() {
-            document.querySelectorAll('#teamButtonsContainer .team-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const team = btn.getAttribute('data-team');
-                    if (team) selectTeam(team);
-                });
-            });
-
-            document.getElementById('pinToggleBtn').addEventListener('click', toggleStickyPin);
-
-            document.querySelectorAll('.adj-btn').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const field = btn.getAttribute('data-field');
-                    const delta = parseInt(btn.getAttribute('data-delta'), 10) || 0;
-                    const rec = getActiveRecord();
-                    rec[field] = Math.max(0, (Number(rec[field]) || 0) + delta);
-                    isDirty = true;
-                    syncFormAndSummaryUI();
-                });
-            });
-
-            document.querySelectorAll('.num-input').forEach(inp => {
-                inp.addEventListener('input', () => {
-                    const field = inp.getAttribute('data-field');
-                    const rec = getActiveRecord();
-                    const parsed = parseInt(inp.value, 10);
-                    rec[field] = isNaN(parsed) || parsed < 0 ? 0 : parsed;
-                    isDirty = true;
-                    syncFormAndSummaryUI();
-                });
-            });
-
-            document.getElementById('input_remark').addEventListener('input', (e) => {
-                const rec = getActiveRecord();
-                rec.remark = e.target.value;
-                isDirty = true;
-                syncFormAndSummaryUI();
-            });
-
-            document.getElementById('prevDateBtn').addEventListener('click', () => shiftDate(-1));
-            document.getElementById('nextDateBtn').addEventListener('click', () => shiftDate(1));
-            document.getElementById('todayDateBtn').addEventListener('click', () => handleDateChange(getTodayKST()));
-            document.getElementById('hiddenDateInput').addEventListener('change', (e) => handleDateChange(e.target.value));
-            document.getElementById('datePickerTrigger').addEventListener('click', () => {
-                const inp = document.getElementById('hiddenDateInput');
-                if (inp.showPicker) inp.showPicker();
-            });
-
-            document.getElementById('saveHeaderBtn').addEventListener('click', saveCurrentTeamData);
-            document.getElementById('resetEmptyToteBtn').addEventListener('click', resetAllTeamsEmptyToteData);
-            document.getElementById('refreshTableBtn').addEventListener('click', refreshFromFirestore);
-            document.getElementById('copyReportBtn').addEventListener('click', copyShareReport);
-
-            document.getElementById('resetHeaderBtn').addEventListener('click', () => {
-                document.getElementById('resetModalTeamName').textContent = currentTeam;
-                const modal = document.getElementById('resetModal');
-                modal.classList.remove('hidden');
-                modal.classList.add('flex');
-            });
-            document.getElementById('cancelResetBtn').addEventListener('click', () => {
-                const modal = document.getElementById('resetModal');
-                modal.classList.add('hidden');
-                modal.classList.remove('flex');
-            });
-            document.getElementById('confirmResetBtn').addEventListener('click', async () => {
-                const modal = document.getElementById('resetModal');
-                modal.classList.add('hidden');
-                modal.classList.remove('flex');
-                await resetCurrentTeamDataInDB();
+        function copyMessage() {
+            const text = document.getElementById('share-preview').innerText;
+            navigator.clipboard.writeText(text).then(() => {
+                alert("공유 메시지가 복사되었습니다!");
             });
         }
 
-        bindAllEvents();
-        formatDateLabels();
-        renderTeamButtons();
-        syncFormAndSummaryUI();
-        renderAggregateTable();
-        connectFirebase();
+        window.onload = function() {
+            initDB();
+            updateDateDisplay();
+            updateFixedBtnUI();
+            calculate();
+        };
     </script>
 </body>
 </html>
