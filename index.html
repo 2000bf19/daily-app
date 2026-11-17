@@ -940,5 +940,22 @@
         });
       }
     </script>
+
+    <script>
+      // 화면에 단독으로 출력되는 문자 그대로의 \\n 텍스트 노드만 제거합니다.
+      (function removeStraySlashN() {
+        function clean(root) {
+          const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+          const remove = [];
+          while (walker.nextNode()) {
+            const node = walker.currentNode;
+            if (node.nodeValue.trim() === "\\n") remove.push(node);
+          }
+          remove.forEach(node => node.parentNode && node.parentNode.removeChild(node));
+        }
+        clean(document.body);
+        new MutationObserver(() => clean(document.body)).observe(document.body, { childList: true, subtree: true });
+      })();
+    </script>
 </body>
 </html>
