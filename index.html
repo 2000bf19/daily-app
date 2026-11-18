@@ -461,7 +461,8 @@
         if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         const firestore = firebase.firestore();
         const firebaseAuth = firebase.auth();
-        const DAILY_COLLECTION = "daily_logistics_v25";
+        // v1.8에서 사용하던 컬렉션명으로 통일
+        const DAILY_COLLECTION = "daily_logistics";
         let firebaseReady = false;
         let currentDocUnsubscribe = null;
         let isApplyingRemoteData = false;
@@ -513,7 +514,12 @@
                     .where('date', '<', thresholdKey).limit(450).get();
                 while (!oldDocs.empty) {
                     const batch = firestore.batch();
-                    oldDocs.docs.forEach(doc => batch.delete(doc.ref));
+                    oldDocs.docs.forEach(doc => {
+                        // v2.5 통합 문서(teams 필드 보유)만 정리하고 기존 v1.8 문서와 충돌 방지
+                        if (doc.data() && doc.data().teams) {
+                            batch.delete(doc.ref);
+                        }
+                    });
                     await batch.commit();
                     if (oldDocs.size < 450) break;
                     oldDocs = await firestore.collection(DAILY_COLLECTION)
@@ -736,7 +742,7 @@
         async function saveData() {
             saveTeamData();
             await currentSavePromise;
-            alert(`${currentTeam} 및 공토트 포함 전체 데이터가 Firebase에 저장되었습니다.`);
+            alert(`${currentTeam} 및 공토트 포함 전체 데이터가 Firebase(daily_logistics)에 저장되었습니다.`);
             calculate();
         }
 
@@ -954,7 +960,6 @@
             });
         }
 
-        // 💡 수정된 부분: 익명 로그인 인증이 완전히 끝난 뒤에 앱을 초기화하도록 수정함
         window.onload = async function() {
             updateDateDisplay();
             const connected = await initializeFirebaseAccess();
