@@ -445,6 +445,42 @@
         </div>
     </div>
 
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyA1SwpNe8dIEmQKcN8dM57gAbkYZ-naylw",
+            authDomain: "himagicdraw.firebaseapp.com",
+            projectId: "himagicdraw",
+            storageBucket: "himagicdraw.firebasestorage.app",
+            messagingSenderId: "271144041888",
+            appId: "1:271144041888:web:27d42211199a70b1d5b8c5",
+            measurementId: "G-9MNF7YV2YP"
+        };
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        const firestore = firebase.firestore();
+        const firebaseAuth = firebase.auth();
+        const DAILY_COLLECTION = "daily_logistics_v25";
+        let firebaseReady = false;
+        let currentDocUnsubscribe = null;
+        let isApplyingRemoteData = false;
+        let currentSavePromise = Promise.resolve();
+
+        async function initializeFirebaseAccess() {
+            try {
+                if (!firebaseAuth.currentUser) await firebaseAuth.signInAnonymously();
+                firebaseReady = true;
+                await cleanOldData();
+                return true;
+            } catch (error) {
+                console.error("Firebase 초기화 실패:", error);
+                alert("Firebase 연결에 실패했습니다. Firebase 콘솔에서 익명 로그인을 켜고 Firestore 규칙을 확인해 주세요.\n" + error.message);
+                return false;
+            }
+        }
+    </script>
+
     <script>
         let currentTeam = 'D조';
         let isFixed = true; 
@@ -464,23 +500,29 @@
             return d;
         }
 
-        function cleanOldData() {
+        // 오늘 기준 3일 전까지 유지하고, 그보다 오래된 v2.5 문서는 접속 시 완전 삭제
+        async function cleanOldData() {
+            if (!firebaseReady) return;
             try {
                 const todayEff = getEffectiveDate(new Date());
                 const thresholdDate = new Date(todayEff.getFullYear(), todayEff.getMonth(), todayEff.getDate() - 3);
-
-                for (let i = localStorage.length - 1; i >= 0; i--) {
-                    const key = localStorage.key(i);
-                    if (key && (key.startsWith('logis_') || key.startsWith('tote_') || key.startsWith('last_team_'))) {
-                        const dateStr = key.replace('logis_', '').replace('tote_', '').replace('last_team_', '');
-                        const storedDate = new Date(dateStr);
-                        if (!isNaN(storedDate) && storedDate < thresholdDate) {
-                            localStorage.removeItem(key);
-                        }
-                    }
+                const y = thresholdDate.getFullYear();
+                const m = String(thresholdDate.getMonth() + 1).padStart(2, '0');
+                const d = String(thresholdDate.getDate()).padStart(2, '0');
+                const thresholdKey = `${y}-${m}-${d}`;
+                let oldDocs = await firestore.collection(DAILY_COLLECTION)
+                    .where('date', '<', thresholdKey).limit(450).get();
+                while (!oldDocs.empty) {
+                    const batch = firestore.batch();
+                    oldDocs.docs.forEach(doc => batch.delete(doc.ref));
+                    await batch.commit();
+                    if (oldDocs.size < 450) break;
+                    oldDocs = await firestore.collection(DAILY_COLLECTION)
+                        .where('date', '<', thresholdKey).limit(450).get();
                 }
             } catch (e) {
-                console.error("cleanOldData error:", e);
+                console.error("Firestore old data cleanup error:", e);
+                // 삭제 실패 시 데이터 저장/조회는 계속할 수 있도록 함
             }
         }
 
@@ -492,60 +534,66 @@
             return `${y}-${m}-${day}`;
         }
 
-        // [v2.5 요구사항 2] 전일(또는 직전) 마지막 활성 조 불러오기
         function getLastActiveTeam(dateKey) {
-            try {
-                // 직접 저장된 값이 있으면 반환
-                const savedTeam = localStorage.getItem(`last_team_${dateKey}`);
-                if (savedTeam && teams.includes(savedTeam)) return savedTeam;
+            return teams.includes(window.lastRemoteTeam) ? window.lastRemoteTeam : 'D조';
+        }
 
-                // 없으면 직전 날짜의 조 확인
-                let d = new Date(currentDate);
-                d.setDate(d.getDate() - 1);
-                const prevKey = getDateKey(d);
-                const prevTeam = localStorage.getItem(`last_team_${prevKey}`);
-                if (prevTeam && teams.includes(prevTeam)) return prevTeam;
-            } catch(e) {}
-            return 'D조'; // 기본값
+        function stopDateListener() {
+            if (currentDocUnsubscribe) {
+                currentDocUnsubscribe();
+                currentDocUnsubscribe = null;
+            }
         }
 
         function initDBForCurrentDate() {
-            cleanOldData();
-            const key = `logis_${getDateKey()}`;
-            const toteKey = `tote_${getDateKey()}`;
-            const saved = localStorage.getItem(key);
-            const savedTote = localStorage.getItem(toteKey);
-            
+            stopDateListener();
             db = {};
-            teams.forEach(t => {
-                db[t] = getEmptyData();
-            });
-
-            if (saved) {
-                try {
-                    const parsed = JSON.parse(saved);
-                    teams.forEach(t => {
-                        if (parsed[t]) {
-                            db[t] = { ...getEmptyData(), ...parsed[t] };
-                        }
-                    });
-                } catch(e) {
-                    console.error("Data parse error:", e);
-                }
-            }
-
+            teams.forEach(t => { db[t] = getEmptyData(); });
             sharedTote = { tote_mg: 0, tote_6f: 0, tote_7f: 0, tote_8f: 0, mez_rem: 0 };
-            if (savedTote) {
-                try {
-                    const parsedTote = JSON.parse(savedTote);
-                    sharedTote = { ...sharedTote, ...parsedTote };
-                } catch(e) {
-                    console.error("Tote parse error:", e);
-                }
-            }
+            window.lastRemoteTeam = 'D조';
+            currentTeam = 'D조';
+            if (!firebaseReady) return;
 
-            // 활성 조 자동 복원 적용
-            currentTeam = getLastActiveTeam(getDateKey());
+            const dateKey = getDateKey();
+            const docRef = firestore.collection(DAILY_COLLECTION).doc(dateKey);
+            currentDocUnsubscribe = docRef.onSnapshot(snapshot => {
+                if (getDateKey() !== dateKey) return;
+                isApplyingRemoteData = true;
+                if (snapshot.exists) {
+                    const remote = snapshot.data() || {};
+                    const remoteTeams = remote.teams || {};
+                    teams.forEach(t => {
+                        db[t] = { ...getEmptyData(), ...(remoteTeams[t] || {}) };
+                    });
+                    sharedTote = { ...sharedTote, ...(remote.sharedTote || {}) };
+                    window.lastRemoteTeam = teams.includes(remote.lastTeam) ? remote.lastTeam : 'D조';
+                    currentTeam = window.lastRemoteTeam;
+                } else {
+                    teams.forEach(t => { db[t] = getEmptyData(); });
+                    sharedTote = { tote_mg: 0, tote_6f: 0, tote_7f: 0, tote_8f: 0, mez_rem: 0 };
+                    window.lastRemoteTeam = 'D조';
+                }
+                loadTeamData();
+                updateDateDisplay();
+                selectTeamUIOnly(currentTeam);
+                calculate();
+                isApplyingRemoteData = false;
+            }, error => {
+                isApplyingRemoteData = false;
+                console.error('Firestore 실시간 조회 실패:', error);
+                alert('서버 데이터 조회에 실패했습니다. Firestore 보안 규칙을 확인해 주세요.');
+            });
+        }
+
+        function selectTeamUIOnly(team) {
+            if (team === 'F조') isFixed = false;
+            else isFixed = true;
+            updateFixedBtnUI();
+            document.querySelectorAll('.team-btn').forEach(btn => {
+                btn.className = "team-btn px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition bg-slate-800 text-slate-300 border border-slate-700 cursor-pointer";
+            });
+            const activeBtn = document.getElementById(`btn-${team}`);
+            if (activeBtn) activeBtn.className = "team-btn px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition bg-blue-600 text-white border border-blue-500 shadow-md cursor-pointer";
         }
 
         function getEmptyData() {
@@ -562,10 +610,7 @@
             saveTeamData();
             currentTeam = team;
             
-            // 현재 선택된 조 정보를 로컬스토리지에 영구 저장 (전일 조 연동용)
-            try {
-                localStorage.setItem(`last_team_${getDateKey()}`, currentTeam);
-            } catch(e) {}
+            window.lastRemoteTeam = currentTeam;
 
             if (team === 'F조') {
                 isFixed = false;
@@ -620,9 +665,7 @@
                 document.getElementById('tote_7f').value = 0;
                 document.getElementById('tote_8f').value = 0;
                 document.getElementById('mez_rem').value = 0;
-                try {
-                    localStorage.removeItem(`tote_${getDateKey()}`);
-                } catch(e) {}
+                saveTeamData();
                 calculate();
             }
         }
@@ -686,20 +729,27 @@
             sharedTote.tote_8f = parseInt(document.getElementById('tote_8f').value || 0);
             sharedTote.mez_rem = parseInt(document.getElementById('mez_rem').value || 0);
 
-            try {
-                const key = `logis_${getDateKey()}`;
-                const toteKey = `tote_${getDateKey()}`;
-                localStorage.setItem(key, JSON.stringify(db));
-                localStorage.setItem(toteKey, JSON.stringify(sharedTote));
-                localStorage.setItem(`last_team_${getDateKey()}`, currentTeam);
-            } catch(e) {
-                console.error("saveTeamData storage error:", e);
-            }
+            if (isApplyingRemoteData || !firebaseReady) return;
+            const dateKey = getDateKey();
+            const payload = {
+                date: dateKey,
+                teams: JSON.parse(JSON.stringify(db)),
+                sharedTote: { ...sharedTote },
+                lastTeam: currentTeam,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            currentSavePromise = firestore.collection(DAILY_COLLECTION).doc(dateKey)
+                .set(payload, { merge: true })
+                .catch(error => {
+                    console.error("Firestore 저장 실패:", error);
+                    alert("서버 저장에 실패했습니다. 인터넷 연결과 Firestore 보안 규칙을 확인해 주세요.");
+                });
         }
 
-        function saveData() {
+        async function saveData() {
             saveTeamData();
-            alert(`${currentTeam} 및 공토트 포함 전체 데이터가 정상적으로 저장되었습니다.`);
+            await currentSavePromise;
+            alert(`${currentTeam} 및 공토트 포함 전체 데이터가 Firebase에 저장되었습니다.`);
             calculate();
         }
 
@@ -707,12 +757,9 @@
             if (confirm("모든 데이터를 초기화하시겠습니까?")) {
                 db[currentTeam] = getEmptyData();
                 loadTeamData();
-                try {
-                    const key = `logis_${getDateKey()}`;
-                    localStorage.setItem(key, JSON.stringify(db));
-                } catch(e) {}
+                saveTeamData();
                 calculate();
-                alert("현재 데이터가 초기화되었습니다.");
+                alert("현재 조 데이터 초기화 요청을 서버에 저장했습니다.");
             }
         }
 
@@ -923,11 +970,13 @@
             });
         }
 
-        window.onload = function() {
-            initDBForCurrentDate();
+        window.onload = async function() {
             updateDateDisplay();
+            const connected = await initializeFirebaseAccess();
+            if (!connected) return;
+            initDBForCurrentDate();
             loadTeamData();
-            selectTeam(currentTeam);
+            selectTeamUIOnly(currentTeam);
         };
     </script>
 
