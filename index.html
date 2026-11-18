@@ -469,13 +469,15 @@
 
         async function initializeFirebaseAccess() {
             try {
-                if (!firebaseAuth.currentUser) await firebaseAuth.signInAnonymously();
+                if (!firebaseAuth.currentUser) {
+                    await firebaseAuth.signInAnonymously();
+                }
                 firebaseReady = true;
                 await cleanOldData();
                 return true;
             } catch (error) {
                 console.error("Firebase 초기화 실패:", error);
-                alert("Firebase 연결에 실패했습니다. Firebase 콘솔에서 익명 로그인을 켜고 Firestore 규칙을 확인해 주세요.\n" + error.message);
+                alert("Firebase 연결에 실패했습니다.\n" + error.message);
                 return false;
             }
         }
@@ -489,18 +491,15 @@
         let db = {};
         let sharedTote = { tote_mg: 0, tote_6f: 0, tote_7f: 0, tote_8f: 0, mez_rem: 0 };
 
-        // [v2.5 요구사항 1] 오후조 기준 날짜 산정 함수 (18시 ~ 익일 05시59분까지는 당일 날짜 유지)
         function getEffectiveDate(targetDate = new Date()) {
             const d = new Date(targetDate);
             const hour = d.getHours();
-            // 새벽 0시부터 5시 59분까지는 전날 날짜로 취급
             if (hour < 6) {
                 d.setDate(d.getDate() - 1);
             }
             return d;
         }
 
-        // 오늘 기준 3일 전까지 유지하고, 그보다 오래된 v2.5 문서는 접속 시 완전 삭제
         async function cleanOldData() {
             if (!firebaseReady) return;
             try {
@@ -522,7 +521,6 @@
                 }
             } catch (e) {
                 console.error("Firestore old data cleanup error:", e);
-                // 삭제 실패 시 데이터 저장/조회는 계속할 수 있도록 함
             }
         }
 
@@ -532,10 +530,6 @@
             const m = String(eff.getMonth() + 1).padStart(2, '0');
             const day = String(eff.getDate()).padStart(2, '0');
             return `${y}-${m}-${day}`;
-        }
-
-        function getLastActiveTeam(dateKey) {
-            return teams.includes(window.lastRemoteTeam) ? window.lastRemoteTeam : 'D조';
         }
 
         function stopDateListener() {
@@ -581,7 +575,6 @@
             }, error => {
                 isApplyingRemoteData = false;
                 console.error('Firestore 실시간 조회 실패:', error);
-                alert('서버 데이터 조회에 실패했습니다. Firestore 보안 규칙을 확인해 주세요.');
             });
         }
 
@@ -609,14 +602,10 @@
         function selectTeam(team) {
             saveTeamData();
             currentTeam = team;
-            
             window.lastRemoteTeam = currentTeam;
 
-            if (team === 'F조') {
-                isFixed = false;
-            } else {
-                isFixed = true;
-            }
+            if (team === 'F조') isFixed = false;
+            else isFixed = true;
             updateFixedBtnUI();
 
             document.querySelectorAll('.team-btn').forEach(btn => {
@@ -676,7 +665,6 @@
             updateDateDisplay();
             initDBForCurrentDate();
             loadTeamData();
-            // 날짜 변경 시 해당 날짜에 저장된 활성 조 버튼 UI 반영
             selectTeam(currentTeam);
         }
 
@@ -742,7 +730,6 @@
                 .set(payload, { merge: true })
                 .catch(error => {
                     console.error("Firestore 저장 실패:", error);
-                    alert("서버 저장에 실패했습니다. 인터넷 연결과 Firestore 보안 규칙을 확인해 주세요.");
                 });
         }
 
@@ -768,13 +755,11 @@
             let sum = 0;
             const regex = /([가-힣a-zA-Z0-9\s]+?)\s*(\d+)\s*plt/gi;
             let match;
-            
             const excludeKeywords = ['공토트', '토트', '빠레트', '빠렛', '빠랫', '빠랫트', '빠래트'];
 
             while ((match = regex.exec(memoText)) !== null) {
                 let prefixText = match[1];
                 let numVal = parseInt(match[2]);
-
                 let isExcluded = false;
                 for (let kw of excludeKeywords) {
                     if (prefixText.includes(kw)) {
@@ -782,7 +767,6 @@
                         break;
                     }
                 }
-
                 if (!isExcluded) {
                     sum += numVal;
                 }
@@ -970,6 +954,7 @@
             });
         }
 
+        // 💡 수정된 부분: 익명 로그인 인증이 완전히 끝난 뒤에 앱을 초기화하도록 수정함
         window.onload = async function() {
             updateDateDisplay();
             const connected = await initializeFirebaseAccess();
@@ -991,7 +976,6 @@
     </script>
 
     <script>
-      // 화면에 단독으로 출력되는 문자 그대로의 \\n 텍스트 노드만 제거합니다.
       (function removeStraySlashN() {
         function clean(root) {
           const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
