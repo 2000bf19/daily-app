@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HI일일현황 v2.0</title>
+    <title>HI일일현황 v2.5</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
@@ -19,7 +19,7 @@
         <div class="max-w-md mx-auto flex items-center justify-between">
             <div class="flex items-center gap-1.5">
                 <h1 class="text-xs font-bold tracking-tight text-slate-200">HI일일현황</h1>
-                <span class="bg-blue-600 text-white text-[10px] px-1.5 py-0.2 rounded font-medium">v2.0</span>
+                <span class="bg-blue-600 text-white text-[10px] px-1.5 py-0.2 rounded font-medium">v2.5</span>
             </div>
             <div class="flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-950/50 px-2 py-0.5 rounded-full border border-emerald-800/50">
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
@@ -700,7 +700,6 @@
             setText('dash-etc', totalEtc);
             setText('dash-total', `${totalPlt} PLT`);
 
-            // 전체 조 공토트 합산
             let totalMg = 0, total6 = 0, total7 = 0, total8 = 0, totalGroundAdd = 0, totalMezRem = 0;
             teams.forEach(t => {
                 const d = db[t] || getEmptyData();
@@ -727,7 +726,6 @@
             setText('ground-formula', `메자닌→그라운드(${tMg}) + 추가(${groundAdd}) - 6·7·8층(${curSumF})`);
             setText('ground-rem-display', curGroundRem);
 
-            // 전체 집계 및 조별 상세 표 계산
             let totS1Box = 0, totS1Pb = 0, totS1Etc = 0, totS1Sum = 0;
             let totS2Box = 0, totS2Pb = 0, totS2Etc = 0, totS2Sum = 0;
             let totS3Box = 0, totS3Pb = 0, totS3Etc = 0, totS3Sum = 0;
@@ -829,13 +827,9 @@
             setText('tbl-tote-g-rem', groundRem);
             setText('tbl-tote-m-rem', totalMezRem);
 
-            // 조별 상세 내역 표시
             setHtml('team-table-body', teamTableHtml);
-
-            // 전체 비고 내역 표시
             setHtml('memo-list-box', memoHtml || '<div class="text-slate-400">등록된 비고 내역이 없습니다.</div>');
 
-            // 공유 메시지 생성 및 표시
             let msgLines = [];
             if (totS1Sum > 0) msgLines.push(`■ 그라운드 → 벌크 이동: ${totS1Sum}plt`);
             if (totS2Sum > 0) msgLines.push(`■ 벌크 → 벌크 이동: ${totS2Sum}plt`);
