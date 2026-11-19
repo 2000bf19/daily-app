@@ -23,7 +23,7 @@
             </div>
             <div class="flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-950/50 px-2 py-0.5 rounded-full border border-emerald-800/50">
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span id="sync-status">온라인 실시간 동기화</span>
+                <span id="sync-status">DB 연결 대기 중</span>
             </div>
         </div>
     </div>
@@ -79,7 +79,7 @@
         <div class="bg-white border border-slate-200 rounded-xl p-2.5 flex items-center justify-between shadow-sm">
             <button type="button" onclick="changeDate(-1)" class="p-1 text-slate-600 hover:text-slate-900 rounded-lg bg-slate-100">◀</button>
             <div class="flex items-center gap-2">
-                <span id="date-display" class="text-sm font-medium text-slate-700">2026. 11. 19. (목)</span>
+                <span id="date-display" class="text-sm font-medium text-slate-700">2026. 11. 20. (금)</span>
                 <button type="button" onclick="setToday()" class="bg-blue-50 text-blue-600 border border-blue-200 text-xs px-2 py-0.5 rounded font-medium">오늘</button>
             </div>
             <button type="button" onclick="changeDate(1)" class="p-1 text-slate-600 hover:text-slate-900 rounded-lg bg-slate-100">▶</button>
@@ -439,16 +439,35 @@
                 <span class="text-xs font-bold text-slate-700">📋 공유 메시지 미리보기</span>
                 <button type="button" onclick="copyMessage()" class="bg-blue-600 hover:bg-blue-500 text-white text-xs px-2.5 py-1 rounded-lg font-medium transition">메시지 복사</button>
             </div>
-            <div class="p-3 bg-slate-900 text-xs text-emerald-300 font-mono whitespace-pre-line leading-relaxed rounded-b-xl" id="share-preview"></div>
+            <div class="p-3 bg-slate-900 text-xs text-emerald-300 font-mono whitespace-pre-line leading-relaxed rounded-b-xl min-h-[72px]" id="share-preview"></div>
         </div>
     </div>
 
-    <script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+        import { getDatabase, ref, set, get, onValue, off } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyA1SwpNe8dIEmQKcN8dM57gAbkYZ-naylw",
+            authDomain: "himagicdraw.firebaseapp.com",
+            databaseURL: "https://himagicdraw-default-rtdb.firebaseio.com",
+            projectId: "himagicdraw",
+            storageBucket: "himagicdraw.firebasestorage.app",
+            messagingSenderId: "271144041888",
+            appId: "1:271144041888:web:27d42211199a70b1d5b8c5",
+            measurementId: "G-9MNF7YV2YP"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+
         let currentTeam = 'D조';
         let isFixed = true;
         let currentDate = new Date();
         const teams = ['A조', 'C조', 'D조', 'F조', 'G조', 'I조'];
         let db = {};
+        let activeListenerRef = null;
+        let isApplyingRemote = false;
 
         function setText(id, val) {
             const el = document.getElementById(id);
@@ -484,30 +503,53 @@
             return `${y}-${m}-${d}`;
         }
 
-        function initDB() {
-            teams.forEach(t => { db[t] = getEmptyData(); });
-            loadFromStorage();
+        function getDayPathRef(team = null) {
+            const dateKey = getDateKey();
+            return team
+                ? ref(database, `daily_logs/${dateKey}/${team}`)
+                : ref(database, `daily_logs/${dateKey}`);
         }
 
-        function loadFromStorage() {
-            const saved = localStorage.getItem('logis_' + getDateKey());
+        function mergeSnapshotToDb(rawData) {
             teams.forEach(t => { db[t] = getEmptyData(); });
-            if (saved) {
-                try {
-                    const parsed = JSON.parse(saved);
-                    teams.forEach(t => {
-                        if (parsed && parsed[t]) {
-                            db[t] = { ...getEmptyData(), ...parsed[t] };
-                        }
-                    });
-                } catch (e) {
-                    console.error('로컬 데이터 읽기 오류:', e);
+            if (!rawData) return;
+
+            teams.forEach(t => {
+                if (rawData[t]) {
+                    db[t] = { ...getEmptyData(), ...rawData[t] };
                 }
+            });
+
+            Object.values(rawData).forEach(item => {
+                if (item && item.team && teams.includes(item.team)) {
+                    db[item.team] = { ...getEmptyData(), ...item };
+                }
+            });
+        }
+
+        function subscribeDateData() {
+            if (activeListenerRef) {
+                off(activeListenerRef);
             }
+            const dayRef = getDayPathRef();
+            activeListenerRef = dayRef;
+            setText('sync-status', '실시간 동기화 중');
+
+            onValue(dayRef, (snapshot) => {
+                mergeSnapshotToDb(snapshot.val());
+                isApplyingRemote = true;
+                loadTeamData();
+                calculate();
+                isApplyingRemote = false;
+                setText('sync-status', '실시간 동기화 완료');
+            }, (error) => {
+                console.error("DB 수신 오류:", error);
+                setText('sync-status', 'DB 수신 오류');
+                calculate();
+            });
         }
 
         function selectTeam(team) {
-            saveTeamData();
             currentTeam = team;
             isFixed = (team !== 'F조');
             updateFixedBtnUI();
@@ -553,39 +595,40 @@
             calculate();
         }
 
-        function resetToteData() {
-            if (confirm("공토트 현황 데이터를 모든 조 공통으로 초기화하시겠습니까?")) {
-                teams.forEach(t => {
-                    if (db[t]) {
-                        db[t].tote_mg = 0;
-                        db[t].tote_6f = 0;
-                        db[t].tote_7f = 0;
-                        db[t].tote_8f = 0;
-                        db[t].ground_rem_add = 0;
-                        db[t].mez_rem = 0;
-                    }
-                });
+        async function resetToteData() {
+            if (!confirm("공토트 현황 데이터를 모든 조 공통으로 초기화하고 DB에 반영하시겠습니까?")) return;
+            const updates = {};
+            teams.forEach(t => {
+                const base = { ...(db[t] || getEmptyData()) };
+                base.tote_mg = 0;
+                base.tote_6f = 0;
+                base.tote_7f = 0;
+                base.tote_8f = 0;
+                base.ground_rem_add = 0;
+                base.mez_rem = 0;
+                db[t] = base;
+                updates[t] = base;
+            });
+            try {
+                await set(getDayPathRef(), updates);
                 loadTeamData();
                 calculate();
+            } catch (e) {
+                console.error("공토트 초기화 오류:", e);
+                alert("공토트 초기화 중 오류가 발생했습니다: " + e.message);
             }
         }
 
         function changeDate(days) {
-            saveTeamData();
             currentDate.setDate(currentDate.getDate() + days);
             updateDateDisplay();
-            loadFromStorage();
-            loadTeamData();
-            calculate();
+            subscribeDateData();
         }
 
         function setToday() {
-            saveTeamData();
             currentDate = new Date();
             updateDateDisplay();
-            loadFromStorage();
-            loadTeamData();
-            calculate();
+            subscribeDateData();
         }
 
         function updateDateDisplay() {
@@ -606,36 +649,57 @@
             }
         }
 
-        function saveTeamData() {
-            if (!db[currentTeam]) db[currentTeam] = getEmptyData();
-            const data = db[currentTeam];
-            for (let key in data) {
+        function collectCurrentTeamForm() {
+            const base = getEmptyData();
+            for (let key in base) {
                 const el = document.getElementById(key);
                 if (el) {
-                    data[key] = (el.type === 'number') ? (parseInt(el.value, 10) || 0) : el.value;
+                    base[key] = (el.type === 'number') ? (parseInt(el.value, 10) || 0) : el.value;
                 }
+            }
+            return base;
+        }
+
+        async function saveData() {
+            const teamPayload = collectCurrentTeamForm();
+            db[currentTeam] = teamPayload;
+            try {
+                await set(getDayPathRef(currentTeam), teamPayload);
+                alert(`${currentTeam} 데이터가 서버 DB에 저장되었습니다.`);
+            } catch (e) {
+                console.error("DB 저장 오류:", e);
+                alert("DB 저장 실패: " + e.message);
             }
         }
 
-        function saveData() {
-            saveTeamData();
-            localStorage.setItem('logis_' + getDateKey(), JSON.stringify(db));
-            alert(`${currentTeam} 데이터가 저장되었습니다.`);
-            calculate();
-        }
-
-        function forceRefresh() {
-            loadFromStorage();
-            loadTeamData();
-            calculate();
-        }
-
-        function resetData() {
-            if (confirm("현재 날짜의 모든 조 데이터를 초기화하시겠습니까?")) {
-                teams.forEach(t => { db[t] = getEmptyData(); });
-                localStorage.removeItem('logis_' + getDateKey());
+        async function forceRefresh() {
+            try {
+                setText('sync-status', '불러오는 중...');
+                const snapshot = await get(getDayPathRef());
+                mergeSnapshotToDb(snapshot.val());
                 loadTeamData();
                 calculate();
+                setText('sync-status', '동기화 완료');
+            } catch (e) {
+                console.error("강제 새로고침 오류:", e);
+                alert("데이터를 새로고침하지 못했습니다: " + e.message);
+            }
+        }
+
+        async function resetData() {
+            if (!confirm("현재 날짜의 모든 조 데이터를 서버 DB에서 초기화하시겠습니까?")) return;
+            const emptyAll = {};
+            teams.forEach(t => {
+                db[t] = getEmptyData();
+                emptyAll[t] = getEmptyData();
+            });
+            try {
+                await set(getDayPathRef(), emptyAll);
+                loadTeamData();
+                calculate();
+            } catch (e) {
+                console.error("전체 초기화 오류:", e);
+                alert("초기화 실패: " + e.message);
             }
         }
 
@@ -655,8 +719,22 @@
             return sum;
         }
 
+        function renderTeamDetailAndShare(teamRowsHtml, shareMsgText) {
+            const teamBody = document.getElementById('team-table-body');
+            if (teamBody) {
+                teamBody.innerHTML = teamRowsHtml;
+            }
+
+            const shareBox = document.getElementById('share-preview');
+            if (shareBox) {
+                shareBox.textContent = shareMsgText;
+            }
+        }
+
         function calculate() {
-            saveTeamData();
+            if (!isApplyingRemote) {
+                db[currentTeam] = collectCurrentTeamForm();
+            }
 
             const s1Box = getNum('sec1_box');
             const s1Pb = getNum('sec1_pb');
@@ -827,7 +905,6 @@
             setText('tbl-tote-g-rem', groundRem);
             setText('tbl-tote-m-rem', totalMezRem);
 
-            setHtml('team-table-body', teamTableHtml);
             setHtml('memo-list-box', memoHtml || '<div class="text-slate-400">등록된 비고 내역이 없습니다.</div>');
 
             let msgLines = [];
@@ -851,23 +928,36 @@
                 msg += `\n\n■ 전체 비고 내역\n\n` + memoMsg.trim();
             }
 
-            setText('share-preview', msg);
+            renderTeamDetailAndShare(teamTableHtml, msg);
         }
 
         function copyMessage() {
             const el = document.getElementById('share-preview');
             if (!el) return;
-            navigator.clipboard.writeText(el.innerText).then(() => {
+            navigator.clipboard.writeText(el.textContent).then(() => {
                 alert("공유 메시지가 복사되었습니다!");
             });
         }
 
+        window.saveData = saveData;
+        window.resetData = resetData;
+        window.selectTeam = selectTeam;
+        window.toggleFixed = toggleFixed;
+        window.updateVal = updateVal;
+        window.resetToteData = resetToteData;
+        window.changeDate = changeDate;
+        window.setToday = setToday;
+        window.forceRefresh = forceRefresh;
+        window.calculate = calculate;
+        window.copyMessage = copyMessage;
+
         window.addEventListener('DOMContentLoaded', () => {
             updateDateDisplay();
-            initDB();
+            teams.forEach(t => { db[t] = getEmptyData(); });
             updateFixedBtnUI();
             loadTeamData();
             calculate();
+            subscribeDateData();
         });
     </script>
 </body>
