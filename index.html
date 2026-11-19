@@ -79,7 +79,7 @@
         <div class="bg-white border border-slate-200 rounded-xl p-2.5 flex items-center justify-between shadow-sm">
             <button type="button" onclick="changeDate(-1)" class="p-1 text-slate-600 hover:text-slate-900 rounded-lg bg-slate-100">◀</button>
             <div class="flex items-center gap-2">
-                <span id="date-display" class="text-sm font-medium text-slate-700">2026. 11. 20. (금)</span>
+                <span id="date-display" class="text-sm font-medium text-slate-700">2026. 11. 19. (목)</span>
                 <button type="button" onclick="setToday()" class="bg-blue-50 text-blue-600 border border-blue-200 text-xs px-2 py-0.5 rounded font-medium">오늘</button>
             </div>
             <button type="button" onclick="changeDate(1)" class="p-1 text-slate-600 hover:text-slate-900 rounded-lg bg-slate-100">▶</button>
@@ -461,9 +461,19 @@
         const app = initializeApp(firebaseConfig);
         const database = getDatabase(app);
 
+        const SHIFT_CUTOFF_HOUR = 6; // 오전 06:00 이전은 전일 실적일로 표기
+
+        function getOperationalDate(baseDate = new Date()) {
+            const d = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate());
+            if (baseDate.getHours() < SHIFT_CUTOFF_HOUR) {
+                d.setDate(d.getDate() - 1);
+            }
+            return d;
+        }
+
         let currentTeam = 'D조';
         let isFixed = true;
-        let currentDate = new Date();
+        let currentDate = getOperationalDate();
         const teams = ['A조', 'C조', 'D조', 'F조', 'G조', 'I조'];
         let db = {};
         let activeListenerRef = null;
@@ -626,7 +636,7 @@
         }
 
         function setToday() {
-            currentDate = new Date();
+            currentDate = getOperationalDate();
             updateDateDisplay();
             subscribeDateData();
         }
@@ -952,6 +962,7 @@
         window.copyMessage = copyMessage;
 
         window.addEventListener('DOMContentLoaded', () => {
+            currentDate = getOperationalDate();
             updateDateDisplay();
             teams.forEach(t => { db[t] = getEmptyData(); });
             updateFixedBtnUI();
