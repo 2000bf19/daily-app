@@ -443,6 +443,17 @@
         </div>
     </div>
 
+    <!-- 저장 완료 커스텀 팝업 모달 (빨간색 영역: 랜덤문구 / 파란색 영역: 기존 저장 문구) -->
+    <div id="save-modal" class="fixed inset-0 z-[100] hidden items-center justify-center bg-black/50 px-6">
+        <div class="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl border border-slate-200">
+            <div id="save-modal-random-title" class="text-lg font-bold text-slate-900 mb-3"></div>
+            <div id="save-modal-body-msg" class="text-sm text-slate-700 mb-6"></div>
+            <div class="flex justify-end">
+                <button type="button" onclick="closeSaveModal()" class="px-4 py-2 rounded-lg text-sm font-semibold text-blue-600 hover:bg-blue-50 transition">확인</button>
+            </div>
+        </div>
+    </div>
+
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
         import { getDatabase, ref, set, get, onValue, off } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js";
@@ -462,6 +473,48 @@
         const database = getDatabase(app);
 
         const SHIFT_CUTOFF_HOUR = 6;
+        const DEFAULT_TEAM = 'D조';
+        const LAST_SAVED_TEAM_STORAGE_KEY = 'hi_daily_last_saved_team';
+        const SAVE_TOAST_MESSAGES = [
+            "레이나 님이 좋아하십니다.",
+            "레이나 님이 따봉을 주셨습니다.",
+            "레이나 님의 특급격려가 있으십니다.",
+            "레이나 님이 항상 지켜보고 계십니다.",
+            "아~참 ! 레이나님이 오후조 잘하고 있다 하셨어요.",
+            "오늘도 열심히 벌고 있습니다.",
+            "날씨는 따위는 오늘의 열정을 이길수 없습니다."
+        ];
+        let lastToastIndex = -1;
+
+        function getRandomSaveMessage() {
+            if (SAVE_TOAST_MESSAGES.length === 1) return SAVE_TOAST_MESSAGES[0];
+            let idx = Math.floor(Math.random() * SAVE_TOAST_MESSAGES.length);
+            if (idx === lastToastIndex) {
+                idx = (idx + 1) % SAVE_TOAST_MESSAGES.length;
+            }
+            lastToastIndex = idx;
+            return SAVE_TOAST_MESSAGES[idx];
+        }
+
+        function showSaveModal(randomTitle, bodyMessage) {
+            const modal = document.getElementById('save-modal');
+            const titleEl = document.getElementById('save-modal-random-title');
+            const bodyEl = document.getElementById('save-modal-body-msg');
+            if (titleEl) titleEl.innerText = randomTitle;
+            if (bodyEl) bodyEl.innerText = bodyMessage;
+            if (modal) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }
+        }
+
+        function closeSaveModal() {
+            const modal = document.getElementById('save-modal');
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        }
 
         function getOperationalDate(baseDate = new Date()) {
             const d = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate());
@@ -471,7 +524,27 @@
             return d;
         }
 
-        let currentTeam = 'D조';
+        function getStoredLastTeam() {
+            try {
+                const saved = localStorage.getItem(LAST_SAVED_TEAM_STORAGE_KEY);
+                return (saved && ['A조', 'C조', 'D조', 'F조', 'G조', 'I조'].includes(saved)) ? saved : null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function setStoredLastTeam(team) {
+            try {
+                if (team && ['A조', 'C조', 'D조', 'F조', 'G조', 'I조'].includes(team)) {
+                    localStorage.setItem(LAST_SAVED_TEAM_STORAGE_KEY, team);
+                }
+            } catch (e) {
+                // 스토리지 접근 제한 환경 무시
+            }
+        }
+
+        let currentTeam = getStoredLastTeam() || DEFAULT_TEAM;
+        let hasUserSelectedTeam = false;
         let isFixed = true;
         let currentDate = getOperationalDate();
         const teams = ['A조', 'C조', 'D조', 'F조', 'G조', 'I조'];
@@ -502,15 +575,20 @@
                 sec4_box: 0, sec4_pb: 0, sec4_etc: 0,
                 tote_mg: 0, tote_6f: 0, tote_7f: 0, tote_8f: 0,
                 ground_rem_add: 0,
-                mez_rem: 0, memo: ''
+                mez_rem: 0, memo: '',
+                lastSavedAt: 0
             };
         }
 
-        function getDateKey() {
-            const y = currentDate.getFullYear();
-            const m = String(currentDate.getMonth() + 1).padStart(2, '0');
-            const d = String(currentDate.getDate()).padStart(2, '0');
+        function formatDateKey(dateObj) {
+            const y = dateObj.getFullYear();
+            const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const d = String(dateObj.getDate()).padStart(2, '0');
             return `${y}-${m}-${d}`;
+        }
+
+        function getDateKey() {
+            return formatDateKey(currentDate);
         }
 
         function getDayPathRef(team = null) {
@@ -518,6 +596,61 @@
             return team
                 ? ref(database, `daily_logs/${dateKey}/${team}`)
                 : ref(database, `daily_logs/${dateKey}`);
+        }
+
+        function pickLatestTeamFromDayNode(dayNode) {
+            if (!dayNode || typeof dayNode !== 'object') return null;
+            let bestTeam = null;
+            let bestTs = -1;
+
+            teams.forEach(t => {
+                const candidate = dayNode[t];
+                if (candidate && typeof candidate === 'object') {
+                    const ts = Number(candidate.lastSavedAt) || 0;
+                    if (ts > bestTs) {
+                        bestTs = ts;
+                        bestTeam = t;
+                    }
+                }
+            });
+
+            Object.values(dayNode).forEach(item => {
+                if (item && item.team && teams.includes(item.team)) {
+                    const ts = Number(item.lastSavedAt) || 0;
+                    if (ts > bestTs) {
+                        bestTs = ts;
+                        bestTeam = item.team;
+                    }
+                }
+            });
+
+            return bestTeam;
+        }
+
+        async function detectLastSavedTeam(referenceDate) {
+            const targetKey = formatDateKey(referenceDate);
+            const fallbackTeam = getStoredLastTeam() || DEFAULT_TEAM;
+            try {
+                const snap = await get(ref(database, 'daily_logs'));
+                const allLogs = snap.val();
+                if (!allLogs || typeof allLogs !== 'object') return fallbackTeam;
+
+                const candidateKeys = Object.keys(allLogs)
+                    .filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k) && k <= targetKey)
+                    .sort()
+                    .reverse();
+
+                for (const key of candidateKeys) {
+                    const found = pickLatestTeamFromDayNode(allLogs[key]);
+                    if (found) {
+                        setStoredLastTeam(found);
+                        return found;
+                    }
+                }
+            } catch (e) {
+                console.error("마지막 저장 조 조회 오류:", e);
+            }
+            return fallbackTeam;
         }
 
         function mergeSnapshotToDb(rawData) {
@@ -572,6 +705,7 @@
         function selectTeam(team) {
             if (!teams.includes(team)) return;
             currentTeam = team;
+            hasUserSelectedTeam = true;
             isFixed = true;
             updateFixedBtnUI();
             updateTeamButtonsUI();
@@ -639,9 +773,13 @@
             subscribeDateData();
         }
 
-        function setToday() {
+        async function setToday() {
             currentDate = getOperationalDate();
             updateDateDisplay();
+            if (!hasUserSelectedTeam) {
+                currentTeam = await detectLastSavedTeam(currentDate);
+                updateTeamButtonsUI();
+            }
             subscribeDateData();
         }
 
@@ -666,20 +804,30 @@
         function collectCurrentTeamForm() {
             const base = getEmptyData();
             for (let key in base) {
+                if (key === 'lastSavedAt') continue;
                 const el = document.getElementById(key);
                 if (el) {
                     base[key] = (el.type === 'number') ? (parseInt(el.value, 10) || 0) : el.value;
                 }
             }
+            base.lastSavedAt = (db[currentTeam] && db[currentTeam].lastSavedAt) || 0;
             return base;
         }
 
         async function saveData() {
-            const teamPayload = collectCurrentTeamForm();
+            const savedAt = Date.now();
+            const teamPayload = {
+                ...collectCurrentTeamForm(),
+                lastSavedAt: savedAt
+            };
             db[currentTeam] = teamPayload;
+            setStoredLastTeam(currentTeam);
             try {
                 await set(getDayPathRef(currentTeam), teamPayload);
-                alert(`${currentTeam} 데이터가 서버 DB에 저장되었습니다.`);
+                showSaveModal(
+                    getRandomSaveMessage(),
+                    `${currentTeam} 데이터가 서버 DB에 저장되었습니다.`
+                );
             } catch (e) {
                 console.error("DB 저장 오류:", e);
                 alert("DB 저장 실패: " + e.message);
@@ -951,6 +1099,7 @@
         }
 
         window.saveData = saveData;
+        window.closeSaveModal = closeSaveModal;
         window.resetData = resetData;
         window.selectTeam = selectTeam;
         window.toggleFixed = toggleFixed;
@@ -962,7 +1111,7 @@
         window.calculate = calculate;
         window.copyMessage = copyMessage;
 
-        window.addEventListener('DOMContentLoaded', () => {
+        window.addEventListener('DOMContentLoaded', async () => {
             currentDate = getOperationalDate();
             updateDateDisplay();
             teams.forEach(t => { db[t] = getEmptyData(); });
@@ -971,6 +1120,14 @@
             loadTeamData();
             calculate();
             subscribeDateData();
+
+            const lastTeam = await detectLastSavedTeam(currentDate);
+            if (!hasUserSelectedTeam && lastTeam && lastTeam !== currentTeam) {
+                currentTeam = lastTeam;
+                updateTeamButtonsUI();
+                loadTeamData();
+                calculate();
+            }
         });
     </script>
 </body>
