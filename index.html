@@ -598,61 +598,6 @@
                 : ref(database, `daily_logs/${dateKey}`);
         }
 
-        function pickLatestTeamFromDayNode(dayNode) {
-            if (!dayNode || typeof dayNode !== 'object') return null;
-            let bestTeam = null;
-            let bestTs = -1;
-
-            teams.forEach(t => {
-                const candidate = dayNode[t];
-                if (candidate && typeof candidate === 'object') {
-                    const ts = Number(candidate.lastSavedAt) || 0;
-                    if (ts > bestTs) {
-                        bestTs = ts;
-                        bestTeam = t;
-                    }
-                }
-            });
-
-            Object.values(dayNode).forEach(item => {
-                if (item && item.team && teams.includes(item.team)) {
-                    const ts = Number(item.lastSavedAt) || 0;
-                    if (ts > bestTs) {
-                        bestTs = ts;
-                        bestTeam = item.team;
-                    }
-                }
-            });
-
-            return bestTeam;
-        }
-
-        async function detectLastSavedTeam(referenceDate) {
-            const targetKey = formatDateKey(referenceDate);
-            const fallbackTeam = getStoredLastTeam() || DEFAULT_TEAM;
-            try {
-                const snap = await get(ref(database, 'daily_logs'));
-                const allLogs = snap.val();
-                if (!allLogs || typeof allLogs !== 'object') return fallbackTeam;
-
-                const candidateKeys = Object.keys(allLogs)
-                    .filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k) && k <= targetKey)
-                    .sort()
-                    .reverse();
-
-                for (const key of candidateKeys) {
-                    const found = pickLatestTeamFromDayNode(allLogs[key]);
-                    if (found) {
-                        setStoredLastTeam(found);
-                        return found;
-                    }
-                }
-            } catch (e) {
-                console.error("마지막 저장 조 조회 오류:", e);
-            }
-            return fallbackTeam;
-        }
-
         function mergeSnapshotToDb(rawData) {
             teams.forEach(t => { db[t] = getEmptyData(); });
             if (!rawData) return;
@@ -706,6 +651,8 @@
             if (!teams.includes(team)) return;
             currentTeam = team;
             hasUserSelectedTeam = true;
+            // 조 선택은 이 휴대폰에만 저장해 다른 팀원의 선택과 분리합니다.
+            setStoredLastTeam(team);
             isFixed = true;
             updateFixedBtnUI();
             updateTeamButtonsUI();
@@ -773,13 +720,13 @@
             subscribeDateData();
         }
 
-        async function setToday() {
+        function setToday() {
             currentDate = getOperationalDate();
             updateDateDisplay();
-            if (!hasUserSelectedTeam) {
-                currentTeam = await detectLastSavedTeam(currentDate);
-                updateTeamButtonsUI();
-            }
+            // 오늘 날짜로 이동해도 이 휴대폰에서 마지막으로 선택한 조를 유지합니다.
+            updateTeamButtonsUI();
+            loadTeamData();
+            calculate();
             subscribeDateData();
         }
 
@@ -1111,8 +1058,10 @@
         window.calculate = calculate;
         window.copyMessage = copyMessage;
 
-        window.addEventListener('DOMContentLoaded', async () => {
+        window.addEventListener('DOMContentLoaded', () => {
             currentDate = getOperationalDate();
+            // 각 휴대폰의 localStorage에 저장된 조를 우선 사용합니다.
+            currentTeam = getStoredLastTeam() || DEFAULT_TEAM;
             updateDateDisplay();
             teams.forEach(t => { db[t] = getEmptyData(); });
             updateFixedBtnUI();
@@ -1120,14 +1069,6 @@
             loadTeamData();
             calculate();
             subscribeDateData();
-
-            const lastTeam = await detectLastSavedTeam(currentDate);
-            if (!hasUserSelectedTeam && lastTeam && lastTeam !== currentTeam) {
-                currentTeam = lastTeam;
-                updateTeamButtonsUI();
-                loadTeamData();
-                calculate();
-            }
         });
     </script>
 </body>
